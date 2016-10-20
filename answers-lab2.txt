@@ -1,0 +1,92 @@
+Alec Greiwe
+Total Time: 14 hours
+Team: Vlad Suslikov
+
+1. Assuming that the following JOS kernel code is correct, 
+what type should variable x have, uintptr_t or physaddr_t?
+	/* mystery_t */ x;
+	char* value = return_a_pointer();
+	*value = 10;
+	x = (mystery_t) value;
+	
+Answer (1): uintptr_t is treated as a pointer and thus can 
+be dereferenced whereas physaddr_t is just an unsigned integer 
+variable. For that reason can hold a physical address as any 
+pointer that is dereferenced is a VA. 
+
+
+2. What entries (rows) in the page directory have been filled in 
+at this point? What addresses do they map and where do they 
+point? In other words, fill out this table as much as possible:
+	Entry	Base 		virtual address	Points to (logically):
+	1023	0xffc00000	Page table for top 4MB of phys memory
+	1022	0xff800000	Page table for next 4MB of phys mem
+	…	…			…
+	960	0xf0000000	Page table for bottom 4MB of phys mem
+	959	0xefc00000	Kernel stack; cpu0 stack
+	958	0xef800000	Mem mapped I/O
+	957	0xef400000	Current Page Table (User R-)
+	956	0xef000000	USER PAGES
+	
+	2	0x00800000	Reserved/Empty
+	1	0x00400000	Reserved/Empty
+	0	0x00000000	Reserved/Empty
+	
+Answer (2): More specifics are available in memlayout.h but 
+the addresses listed above are referenced/used in our code.
+
+
+3. We have placed the kernel and user environment in the same 
+address space. Why will user programs not be able to read or 
+write the kernel’s memory? What specific mechanisms protect the 
+kernel memory?
+
+Answer(3): The addresses that are accessible are based off of
+the permission bits that are set and the Current Privilege 
+Level (CPL) which is 0 for kernel usage and 3 for all users
+which are stored in the lower 2 bits of the CS register.
+Further, there are also permission bits stored in the lower
+12 of the page table entries which provide information about
+the address and usage as well as how user/kernel can use it.
+
+
+4. What is the maximum amount of physical memory that this 
+operating system can support? Why?
+
+Answer(4): The maximum amount of physical memory the OS can
+store is 256 MB because the kernel's address space is only 
+256 MB large: from 0xf0000000 to 0xffffffff.
+
+
+5. How much space overhead is there for managing memory, if 
+we actually had the maximum amount of physical memory? How 
+is this overhead broken down?
+
+Answer(5): There is a page directory entry where each entry
+points to a page table where a bunch of addresses to pages
+are held.  Each page table (including the page directory)
+has 1024 entries and each entry is 4 bytes: 4kB. Further, 
+each page directory points to 1024 page tables which each
+takes up 4kB of address space: 4kB + 1024 * 4kB = 4mB + 4kB.
+
+
+6. Revisit the page table setup in kern/entry.S and 
+kern/entrypgdir.c. Immediately after we turn on paging, EIP 
+is still a low number (a little over 1MB). At what point do 
+we transition to running at an EIP above KERNBASE? What 
+makes it possible for us to continue executing at a low EIP 
+between when we enable paging and when we begin running at 
+an EIP above KERNBASE? Why is this transition necessary?
+
+Answer(6): Starts off by setting the 0th bit of the cr0 
+register which turns on protected mode and thus enables
+virtual addressing.  And then the address to function named
+relocated is put into ecx register and then we jump to it.  
+This instruction address transitions the EIP to one above 
+KERNBASE because the $relocated is.  The reason why it's 
+okay to continue executing at a low EIP, as is done 
+immediately before this instruction is because entrypgdir.c 
+maps [0, 4mB) to [0, 4mB).  It's necessary because this
+address space is abandoned in the interest of preserving
+the real-mode IDT and BIOS structures. Further, this space
+is cut into when setting up kern_pgdir.

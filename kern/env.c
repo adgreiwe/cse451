@@ -381,15 +381,15 @@ load_icode(struct Env *e, uint8_t *binary)
 			}
 		}
 	}
-	// e->env_tf = ((struct Elf *) binary)->e_entry;
-	
+	e->env_tf.tf_eip = ((struct Elf *) binary)->e_entry;
+
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+
 	struct PageInfo *u_stack_pg = page_alloc(ALLOC_ZERO);
-	boot_map_region(e->env_pgdir, USTACKTOP - PGSIZE, PGSIZE, page2pa(u_stack_pg), PTE_U | PTE_W);
-	
+	page_insert(e->env_pgdir, u_stack_pg, (void *) (USTACKTOP - PGSIZE), flags);
 }
 
 //

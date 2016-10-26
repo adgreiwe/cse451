@@ -137,8 +137,7 @@ mem_init(void)
 
 	// Permissions: kernel R, user R
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
-	cprintf("%x %p\n", PADDR(kern_pgdir), kern_pgdir);
-
+	
 	//////////////////////////////////////////////////////////////////////
 	// Allocate an array of npages 'struct PageInfo's and store it in 'pages'.
 	// The kernel uses this array to keep track of physical pages: for
@@ -152,7 +151,7 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
-
+	envs = (struct Env *) boot_alloc(NENV * sizeof(struct Env));
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -185,7 +184,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-
+	boot_map_region(kern_pgdir, UENVS, NENV * sizeof(struct Env), PADDR(envs), PTE_U);
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -291,7 +290,7 @@ page_init(void)
 		// curr_page < e->addr + e->len
 		if (curr_page < (physaddr_t) e->addr || e->type != E820_AVAILABLE ||
 		    (curr_page + PGSIZE - 1 >= (physaddr_t) IOPHYSMEM &&
-		     curr_page <= (physaddr_t) PADDR(pages + npages))) {
+		     curr_page <= (physaddr_t) PADDR(envs + NENV))) {
 			// not in e820 entry OR mem range is not AVAILABLE OR
 			// page is in hole above IOPHYSMEM and below pages array
 			
@@ -434,7 +433,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 	perm = perm | PTE_P;
 	size = size + pa;
 	while (pa < size) {
-		*pgdir_walk(pgdir, (void *) va, 1) = pa | perm;
+		*pgdir_walk(pgdir, (void *) va, ALLOC_ZERO) = pa | perm;
 		pa += PGSIZE;
 		va += PGSIZE;
 	}
@@ -468,7 +467,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
-	pte_t *pte = pgdir_walk(pgdir, va, 1);
+	pte_t *pte = pgdir_walk(pgdir, va, ALLOC_ZERO);
 	if (!pte) {
 		// Page table could not be allocated
 		return -E_NO_MEM;

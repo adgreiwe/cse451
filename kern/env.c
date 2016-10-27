@@ -527,20 +527,20 @@ env_run(struct Env *e)
 	//	e->env_tf.  Go back through the code you wrote above
 	//	and make sure you have set the relevant parts of
 	//	e->env_tf to sensible values.
-	
-	// Set to runnable if currently running
-	if (e->env_status == ENV_RUNNING) {
-		e->env_status = ENV_RUNNABLE;
-	}
-	// Set curenv to new environment
-	curenv = e;
-	// Set status to running
-	e->env_status = ENV_RUNNING;
-	// Update runs counter
-	e->env_runs++;
-	// lcr3() to switch back to its address space
-	lcr3(PADDR(e->env_pgdir));
-	// Restore registers and go back to user mode
-	env_pop_tf(&e->env_tf);
-}
 
+	// LAB 3: Your code here.
+	if (curenv != NULL) {
+		if (curenv->env_status == ENV_RUNNING) {
+			curenv->env_status = ENV_RUNNABLE;
+		} else {
+ 			panic("env_run: curenv's status is not ENV_RUNNING.\n");
+		}
+	}
+	
+	curenv = e;
+	curenv->env_status = ENV_RUNNING;
+	curenv->env_runs++;
+	lcr3(PADDR(curenv->env_pgdir));
+
+	env_pop_tf(&curenv->env_tf);
+}

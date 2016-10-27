@@ -407,12 +407,12 @@ load_icode(struct Env *e, uint8_t *binary)
 void
 env_create(uint8_t *binary, enum EnvType type)
 {
-	// Allocate new env with parent ID 0
+	// LAB 3: Your code here.
 	struct Env *e;
-	env_alloc(&e, 0);
-	// Load elf binary into load_icode
-    load_icode(e, binary);
-	// Set env type
+	if (env_alloc(&e, (envid_t) 0) < 0) {
+		panic("env_create: error allocating Env\n");
+	}
+	load_icode(e, binary);
 	e->env_type = type;
 }
 

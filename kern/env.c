@@ -359,35 +359,42 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  You must also do something with the program's entry point,
 	//  to make sure that the environment starts executing there.
 	//  What?  (See env_run() and env_pop_tf() below.)
-	
-	struct Elf* elf = (struct Elf*) binary;
-	// e_magic must equak ELF_MAGIC
-	if (elf->e_magic != ELF_MAGIC) {
-		panic("load_icode: elf error");
+
+	// LAB 3: Your code here.
+	if (((struct Elf *) binary)->e_magic != ELF_MAGIC) {
+		panic("load_icode: not a valid ELF binary\n");
 	}
-	// Get proghdr by going correct offset from binary
-    struct Proghdr* ph = (struct Proghdr*) (binary  + elf->e_phoff);
-	// Load current environments page directory
+
+	struct Proghdr *ph = (struct Proghdr *) (binary + ((struct Elf *) binary)->e_phoff);
+	struct Proghdr *eph = ph + ((struct Elf *) binary)->e_phnum;
+
 	lcr3(PADDR(e->env_pgdir));
-	for (int i = 0; i < elf->e_phnum; i++, ph++) {
+	for (; ph < eph; ph++) {
 		if (ph->p_type == ELF_PROG_LOAD) {
-			// Must be the case for an elf header
 			if (ph->p_filesz > ph->p_memsz) {
-				panic("load_icode: size mismatch");
+				panic("load_icode: filesz greater than memsz\n");
 			}
-	     	region_alloc(e, (void*) ph->p_va, ph->p_memsz);
-			// Initiall set all bytes equal to zero
-			memset((void*) ph->p_va, 0, ph->p_memsz);
-			// Copy correct  number of bytes to correct virtual address
-			memcpy((void*) ph->p_va, binary + ph->p_offset, ph->p_filesz);                   
+			region_alloc(e, (void *) ph->p_va, ph->p_memsz);
+			memcpy((void *) ph->p_va, binary + ph->p_offset, ph->p_filesz);
+			uint32_t ph_bss = ph->p_memsz - ph->p_filesz;
+			if (ph_bss > 0) {
+				// some bss needs to be set
+				memset((char *) ph->p_va + ph->p_filesz, 0, ph_bss);
+			}
 		}
 	}
-   	e->env_tf.tf_eip = elf->e_entry;
-
+	e->env_tf.tf_eip = ((struct Elf *) binary)->e_entry;
+	
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
-	region_alloc(e, (void*) (USTACKTOP - PGSIZE), PGSIZE);
+	// LAB 3: Your code here.
+	struct PageInfo *u_stack_pg = page_alloc(~ALLOC_ZERO);
+	if (u_stack_pg == NULL || 
+			page_insert(e->env_pgdir, u_stack_pg, 
+			(void *) (USTACKTOP - PGSIZE), PTE_U | PTE_W) == -E_NO_MEM) {
+		panic("load_icode: Problem mapping page for program's initial stack\n");
+	}
 }
 
 //

@@ -114,14 +114,16 @@ envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 void
 env_init(void)
 {
-	// Mark all environments as free and add them to free list	
-	for (int i = 0; i < NENV; i++) {
+	// Set up envs array
+	// LAB 3: Your code here.
+
+	for (int i = NENV - 1; i >= 0; i--) {
 		envs[i].env_id = 0;
+		envs[i].env_status = ENV_FREE;
 		envs[i].env_link = env_free_list;
-		env_free_list = &envs[i];
+		env_free_list = envs + i;
 	}
-	// Set env_free_list to point back to start of envs
-	env_free_list = envs;
+	// Per-CPU part of the initialization
 	env_init_percpu();
 }
 

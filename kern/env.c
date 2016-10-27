@@ -278,24 +278,33 @@ region_alloc(struct Env *e, void *va, size_t len)
 {
 	// LAB 3: Your code here.
 	// (But only if you need it for load_icode.)
-	//
+	char *end = ROUNDUP((char *) va + len, PGSIZE);
+	char *start = ROUNDDOWN(va, PGSIZE);
+
+	if (start >= (char *) UTOP || (size_t) end > UTOP) {
+		panic("region_alloc: va is above UTOP");
+	}
+
+	int flags = PTE_U | PTE_W;
+
+	for (char *i = start; i < end; i += PGSIZE) {
+		if (i >= (char *) UTOP) {
+			panic("region_alloc: trying to allocate va above UTOP");
+		}	
+		struct PageInfo *page = page_alloc(~ALLOC_ZERO);
+		if (page == NULL) {
+			panic("region_alloc: could not allocate page");
+		}
+
+		if (0 != page_insert(e->env_pgdir, page, i, flags)) {
+			panic("region_alloc: could not insert page");
+		}
+
+	} 
 	// Hint: It is easier to use region_alloc if the caller can pass
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
-
-	// Do correct rounding for va and va + len
-	void* start = ROUNDDOWN(va, PGSIZE);
-	void* end = ROUNDUP(va + len, PGSIZE);
-	for (void* i = start; i < end; i += PGSIZE) {
-		// Allocate a page that is not specially initialized
-        struct PageInfo *pg = page_alloc(~ALLOC_ZERO);
-        if (pg == NULL) {
-            panic("region_alloc: failed");
-		}
-		// Insert newly allocated page with correct permissions
-        page_insert(e->env_pgdir, pg, i, PTE_W | PTE_U);
-	}
 }
 
 //

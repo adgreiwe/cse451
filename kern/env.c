@@ -188,9 +188,7 @@ env_setup_vm(struct Env *e)
 	
 	e->env_pgdir = page2kva(p);
 	for (i = UTOP; i != 0; i += PTSIZE) {
-		cprintf("current i: %p\n", (void *) i);
 		e->env_pgdir[PDX(i)] = kern_pgdir[PDX(i)];
-		cprintf("PDX(i) is %d\n", PDX(i));
 	}
 	// okay to not account for UVPT because it's overwritten below		
 

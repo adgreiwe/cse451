@@ -147,11 +147,28 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	// Return any appropriate return value.
 	// LAB 3: Your code here.
 
-	panic("syscall not implemented");
-
 	switch (syscallno) {
+
+	case SYS_cputs :
+		sys_cputs((char *) a1, a2);
+		return 0;
+
+	case SYS_getenvid :
+		return sys_getenvid();
+
+	case SYS_env_destroy :
+		return sys_env_destroy(a1);
+
+	case SYS_page_alloc :
+		return sys_page_alloc(a1, (char *) a2, (int) a3);
+
+	case SYS_page_map :
+		return sys_page_map(a1, (void *) a2, a3, (void *) a4, (int) a5);
+
+	case SYS_page_unmap :
+		return sys_page_unmap(a1, (void *) a2);
+
 	default:
 		return -E_INVAL;
 	}
 }
-

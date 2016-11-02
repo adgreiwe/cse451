@@ -156,7 +156,7 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	    dstva >= (void *) UTOP || (size_t) dstva % PGSIZE != 0 || 
 	    (uint32_t) (perm | 0xfff) > 0xfff ||
 	    (perm & user_readable) != user_readable ||
-	    ((~PTE_SYSCALL) & perm) != 0 || page == NULL || //USE page_lookup instead
+	    ((~PTE_SYSCALL) & perm) != 0 || page == NULL ||
 	    (((*src_entry & PTE_W) & perm) == 0 && (perm & PTE_W))) {
 		return -E_INVAL;
 	}

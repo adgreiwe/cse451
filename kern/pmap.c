@@ -472,7 +472,7 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 		// Page table could not be allocated
 		return -E_NO_MEM;
 	}
-	// Increment reference ount before to avoid corner case
+	// Increment reference count before to avoid corner case
 	pp->pp_ref++;
 	// If page is already mapped, page_remove() it
 	if (*pte & PTE_P) {
@@ -572,7 +572,28 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
-
+	user_mem_check_addr = (uintptr_t) ROUNDDOWN(va, PGSIZE);
+	uintptr_t end = (uintptr_t) ROUNDUP(va + len, PGSIZE);
+	perm = perm | PTE_P;
+	for (user_mem_check_addr = (uintptr_t) ROUNDDOWN(va, PGSIZE); 
+			user_mem_check_addr < end; user_mem_check_addr += PGSIZE) {
+		if (user_mem_check_addr < ULIM) {
+			// page is not in kernel space
+			pte_t *entry = pgdir_walk(env->env_pgdir, 
+				       (void *) user_mem_check_addr, 0);
+			if (entry != NULL && (*entry & perm) == perm) {
+				// env has permission
+				continue;	
+			}
+		}
+		// did not make it into inner if statement: not accessible
+		if (user_mem_check_addr < (uintptr_t) va) {
+			// page corresponding to va is not accessible
+			user_mem_check_addr = (uintptr_t) va;
+		}
+		return -E_FAULT; 
+	}
+	// range is accesible
 	return 0;
 }
 

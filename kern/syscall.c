@@ -10,6 +10,8 @@
 #include <kern/trap.h>
 #include <kern/syscall.h>
 #include <kern/console.h>
+#include <kern/sched.h>
+#include <kern/sysinfo.h>
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -156,7 +158,7 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	    dstva >= (void *) UTOP || (size_t) dstva % PGSIZE != 0 || 
 	    (uint32_t) (perm | 0xfff) > 0xfff ||
 	    (perm & user_readable) != user_readable ||
-	    ((~PTE_SYSCALL) & perm) != 0 || page == NULL ||
+	    ((~PTE_SYSCALL) & perm) != 0 || page == NULL || //USE page_lookup instead
 	    (((*src_entry & PTE_W) & perm) == 0 && (perm & PTE_W))) {
 		return -E_INVAL;
 	}
@@ -192,6 +194,137 @@ sys_page_unmap(envid_t envid, void *va)
 	}
 
 	page_remove(e->env_pgdir, va);
+	return 0;
+}
+
+// Deschedule current environment and pick a different one to run.
+static void
+sys_yield(void)
+{
+	sched_yield();
+}
+
+// Allocate a new environment.
+// Returns envid of new environment, or < 0 on error.  Errors are:
+//	-E_NO_FREE_ENV if no free environment is available.
+//	-E_NO_MEM on memory exhaustion.
+static envid_t
+sys_exofork(void)
+{
+	// Create the new environment with env_alloc(), from kern/env.c.
+	// It should be left as env_alloc created it, except that
+	// status is set to ENV_NOT_RUNNABLE, and the register set is copied
+	// from the current environment -- but tweaked so sys_exofork
+	// will appear to return 0.
+
+	// LAB 4: Your code here.
+	panic("sys_exofork not implemented");
+}
+
+// Set envid's env_status to status, which must be ENV_RUNNABLE
+// or ENV_NOT_RUNNABLE.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+//	-E_INVAL if status is not a valid status for an environment.
+static int
+sys_env_set_status(envid_t envid, int status)
+{
+	// Hint: Use the 'envid2env' function from kern/env.c to translate an
+	// envid to a struct Env.
+	// You should set envid2env's third argument to 1, which will
+	// check whether the current environment has permission to set
+	// envid's status.
+
+	// LAB 4: Your code here.
+	panic("sys_env_set_status not implemented");
+}
+
+// Set the page fault upcall for 'envid' by modifying the corresponding struct
+// Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
+// kernel will push a fault record onto the exception stack, then branch to
+// 'func'.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+static int
+sys_env_set_pgfault_upcall(envid_t envid, void *func)
+{
+	// LAB 4: Your code here.
+	panic("sys_env_set_pgfault_upcall not implemented");
+}
+
+// Return the current system information.
+static int
+sys_sysinfo(struct sysinfo *info)
+{
+	// LAB 4: Your code here.
+	panic("sys_sysinfo not implemented");
+}
+
+// Try to send 'value' to the target env 'envid'.
+// If srcva < UTOP, then also send page currently mapped at 'srcva',
+// so that receiver gets a duplicate mapping of the same page.
+//
+// The send fails with a return value of -E_IPC_NOT_RECV if the
+// target is not blocked, waiting for an IPC.
+//
+// The send also can fail for the other reasons listed below.
+//
+// Otherwise, the send succeeds, and the target's ipc fields are
+// updated as follows:
+//    env_ipc_recving is set to 0 to block future sends;
+//    env_ipc_from is set to the sending envid;
+//    env_ipc_value is set to the 'value' parameter;
+//    env_ipc_perm is set to 'perm' if a page was transferred, 0 otherwise.
+// The target environment is marked runnable again, returning 0
+// from the paused sys_ipc_recv system call.  (Hint: does the
+// sys_ipc_recv function ever actually return?)
+//
+// If the sender wants to send a page but the receiver isn't asking for one,
+// then no page mapping is transferred, but no error occurs.
+// The ipc only happens when no errors occur.
+//
+// Returns 0 on success, < 0 on error.
+// Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist.
+//		(No need to check permissions.)
+//	-E_IPC_NOT_RECV if envid is not currently blocked in sys_ipc_recv,
+//		or another environment managed to send first.
+//	-E_INVAL if srcva < UTOP but srcva is not page-aligned.
+//	-E_INVAL if srcva < UTOP and perm is inappropriate
+//		(see sys_page_alloc).
+//	-E_INVAL if srcva < UTOP but srcva is not mapped in the caller's
+//		address space.
+//	-E_INVAL if (perm & PTE_W), but srcva is read-only in the
+//		current environment's address space.
+//	-E_NO_MEM if there's not enough memory to map srcva in envid's
+//		address space.
+static int
+sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
+{
+	// LAB 4: Your code here.
+	panic("sys_ipc_try_send not implemented");
+}
+
+// Block until a value is ready.  Record that you want to receive
+// using the env_ipc_recving and env_ipc_dstva fields of struct Env,
+// mark yourself not runnable, and then give up the CPU.
+//
+// If 'dstva' is < UTOP, then you are willing to receive a page of data.
+// 'dstva' is the virtual address at which the sent page should be mapped.
+//
+// This function only returns on error, but the system call will eventually
+// return 0 on success.
+// Return < 0 on error.  Errors are:
+//	-E_INVAL if dstva < UTOP but dstva is not page-aligned.
+static int
+sys_ipc_recv(void *dstva)
+{
+	// LAB 4: Your code here.
+	panic("sys_ipc_recv not implemented");
 	return 0;
 }
 

@@ -63,6 +63,62 @@ void	page_decref(struct PageInfo *pp);
 
 void	tlb_invalidate(pde_t *pgdir, void *va);
 
+volatile void *	mmio_map_region(physaddr_t pa, size_t size);
+
+static inline uint8_t
+mmio_read8(volatile void *addr)
+{
+	return *(volatile uint8_t *)addr;
+}
+
+static inline uint16_t
+mmio_read16(volatile void *addr)
+{
+	return *(volatile uint16_t *)addr;
+}
+
+static inline uint32_t
+mmio_read32(volatile void *addr)
+{
+	return *(volatile uint32_t *)addr;
+}
+
+static inline uint64_t
+mmio_read64(volatile void *addr)
+{
+	uint64_t lo, hi;
+
+	lo = mmio_read32(addr);
+	hi = mmio_read32(addr + 4);
+	return lo + (hi << 32);
+}
+
+static inline void
+mmio_write8(volatile void *addr, uint8_t v)
+{
+	*(volatile uint8_t *)addr = v;
+}
+
+static inline void
+mmio_write16(volatile void *addr, uint16_t v)
+{
+	*(volatile uint16_t *)addr = v;
+}
+
+static inline void
+mmio_write32(volatile void *addr, uint32_t v)
+{
+	*(volatile uint32_t *)addr = v;
+}
+
+static inline void
+mmio_write64(volatile void *addr, uint64_t v)
+{
+	mmio_write32(addr, (uint32_t)v);
+	mmio_write32(addr + 4, (uint32_t)(v >> 32));
+}
+
+
 int	user_mem_check(struct Env *env, const void *va, size_t len, int perm);
 void	user_mem_assert(struct Env *env, const void *va, size_t len, int perm);
 

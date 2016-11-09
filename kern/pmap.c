@@ -198,7 +198,11 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, KSTACKTOP - KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W);
+	
+	// I believe this is no longer necessary as it's allocated in mem_init_mp for SMP
+	//boot_map_region(kern_pgdir, KSTACKTOP - KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W);
+	cprintf("PADDR(bootstack) is %d and PADDR(percup_kstacks[0]) is %d\n", PADDR(bootstack), 
+			PADDR(percpu_kstacks[0]));
 	
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -262,7 +266,11 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
-
+	for (int i = 0; i < NCPU; i++) {
+		boot_map_region(kern_pgdir, KSTACKTOP - KSTKSIZE - i * (KSTKSIZE + KSTKGAP), 
+				KSTKSIZE, (uintptr_t) PADDR(percpu_kstacks[i]), PTE_W);
+	}
+	
 }
 
 // --------------------------------------------------------------
@@ -326,9 +334,12 @@ page_init(void)
 		// curr_page < e->addr + e->len
 		if (curr_page < (physaddr_t) e->addr || e->type != E820_AVAILABLE ||
 		    (curr_page + PGSIZE - 1 >= (physaddr_t) IOPHYSMEM &&
-		     curr_page <= (physaddr_t) PADDR(envs + NENV))) {
+		     curr_page <= (physaddr_t) PADDR(envs + NENV)) ||
+		    curr_page == MPENTRY_PADDR) {
 			// not in e820 entry OR mem range is not AVAILABLE OR
-			// page is in hole above IOPHYSMEM and below pages array
+			// page is in hole above IOPHYSMEM and below envs array
+			// OR it points to MPENTRY_PADDR - reserved for AP bootstrap
+			// code.
 			
 			// pages[i].pp_ref = 1;
 			pages[i].pp_link = NULL;
@@ -616,7 +627,17 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+	assert(pa % PGSIZE == 0);
+	size = ROUNDUP(size, PGSIZE);
+	if (base + size > MMIOLIM || base > base + size) {
+		panic("not enough space in MMIO space\n");
+	}
+	
+	uintptr_t mmio_ptr = base;
+	base += size;
+	int perm = (PTE_PCD | PTE_PWT | PTE_W);
+	boot_map_region(kern_pgdir, mmio_ptr, size, pa, perm);
+	return (void *) mmio_ptr;
 }
 
 static uintptr_t user_mem_check_addr;

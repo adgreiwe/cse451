@@ -28,24 +28,25 @@ sched_yield(void)
 	// no runnable environments, simply drop through to the code
 	// below to halt the cpu.
 
-	// LAB 4: Your code here.
-	struct Env *curr_env = curenv;
-	if (curr_env == NULL) {
-		curr_env = envs;
+	// Get index of the current environment
+    int eIdx = 0;
+    if (curenv) {
+		eIdx = ENVX(curenv->env_id);
 	}
-	for (idle = curr_env; idle < envs + NENV; idle++) {
-		if (idle->env_status == ENV_RUNNABLE) {
-			env_run(idle);
-		}
+    for (int i = 0; i < NENV; i++) {
+		// Mod to go through all environments in circular fasion
+        int idx = (eIdx + i) % NENV;
+		// If the current environment is runable then run it
+        if (envs[idx].env_status == ENV_RUNNABLE) {
+            env_run(envs + idx);
+        }
+    }
+	// If no environments are runnable but current environment is
+	// still running then rerun it
+    if (curenv->env_status == ENV_RUNNING) {
+        env_run(curenv);
 	}
-	for (idle = envs; idle < curr_env; idle++) {
-		if (idle->env_status == ENV_RUNNABLE) {
-			env_run(idle);
-		}
-	}
-	if (idle->env_status == ENV_RUNNING) {
-		env_run(idle);
-	}
+
 	// sched_halt never returns
 	sched_halt();
 }

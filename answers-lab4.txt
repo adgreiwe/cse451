@@ -1,0 +1,36 @@
+Alec Greiwe
+Total Time: 8 hours
+Team: Vlad Suslikov
+
+1. Compare kern/mpentry.S side by side with boot/boot.S. Bearing in mind that kern/mpentry.S is 
+compiled and linked to run above KERNBASE just like everything else in the kernel, what is the 
+purpose of macro MPBOOTPHYS? Why is it necessary in kern/mpentry.S but not in boot/boot.S? In 
+other words, what could go wrong if it were omitted in kern/mpentry.S?
+	A: The location from which the code in mpentry.S is being read is not the load address
+	as the code that holds mpentry.S is moved to a different pa because the processor is
+	still in real mode and cannot be above first megabyte.
+
+2. It seems that using the big kernel lock guarantees that only one CPU can run the kernel code 
+at a time. Why do we still need separate kernel stacks for each CPU? Describe a scenario in 
+which using a shared kernel stack will go wrong, even with the protection of the big kernel lock.
+	A: If the designated space for the stack of one CPU goes too far, there will be no guard
+	page and data for another CPU could be overwritten. 
+
+3. In your implementation of env_run() you should have called lcr3(). Before and after the call to
+lcr3(), your code makes references (at least it should) to the variable e, the argument to 
+env_run. Upon loading the %cr3 register, the addressing context used by the MMU is instantly 
+changed. But a virtual address (namely e) has meaning relative to a given address context – the 
+address context specifies the physical address to which the virtual address maps. Why can the 
+pointer e be dereferenced both before and after the addressing switch?
+	A: These are in kernel space and upon creating an environment, the va above KERBASE are
+	copied into the page directory of the new environment -> all page directories have these
+	virtual addresses. 
+
+4. Whenever the kernel switches from one environment to another, it must ensure the old 
+environment’s registers are saved so they can be restored properly later. Why? Where does this 
+happen?
+	A: If the previous env's registers are not stored/restored properly, picking up where
+	the environment left off could not be done accurately.  The registers are restored
+	in env_run with the env_pop_tf() function.  They are stored when switching environments. 
+	The registers are pushed onto the stack when an interrupt/trap occurs in TRAPHANDLER
+	through _alltraps, specifically.

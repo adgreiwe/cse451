@@ -43,8 +43,8 @@ sched_yield(void)
 			env_run(idle);
 		}
 	}
-	if (idle->env_status == ENV_RUNNING) {
-		env_run(idle);
+	if (curr_env->env_status == ENV_RUNNING) {
+		env_run(curr_env);
 	}
 	// sched_halt never returns
 	sched_halt();

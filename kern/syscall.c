@@ -271,7 +271,13 @@ static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4: Your code here.
-	panic("sys_env_set_pgfault_upcall not implemented");
+	struct Env *e;
+	if (envid2env(envid, &e, 1) < 0) {
+		return -E_BAD_ENV;
+	}
+
+	e->env_pgfault_upcall = func;
+	return 0;
 }
 
 // Return the current system information.
@@ -394,7 +400,11 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_env_set_status :
 		// set env corresponding with envid in a1 to have status held in a2
 		return sys_env_set_status(a1, (int) a2);
-		
+
+	case SYS_env_set_pgfault_upcall : 
+		// set page fault upcall entry point (a2) for env of envid a1
+		return sys_env_set_pgfault_upcall(a1, (void *) a2);
+
 	default:
 		return -E_INVAL;
 	}

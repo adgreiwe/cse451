@@ -29,7 +29,10 @@ set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
 	if (_pgfault_handler == 0) {
 		// First time through!
 		// LAB 4: Your code here.
-		panic("set_pgfault_handler not implemented");
+		if (sys_page_alloc(curenv->envid, (void *) (UXSTACKTOP - PGSIZE), 
+				(PTE_U | PTE_W | PTE_P)) < 0) {
+			panic("error allocating user exception stack page\n");
+		}
 	}
 
 	// Save handler pointer for assembly to call.

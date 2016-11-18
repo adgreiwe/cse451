@@ -13,7 +13,7 @@
 #include <kern/spinlock.h>
 #include <kern/sysinfo.h>
 
-static struct Taskstate ts;
+// static struct Taskstate ts;
 
 /* For debugging, so print_trapframe can distinguish between printing
  * a saved trapframe and printing the current trapframe and print some
@@ -65,54 +65,51 @@ static const char *trapname(int trapno)
 }
 
 
+void i_t_0();
+void i_t_1();
+void i_t_2();
+void i_t_3();
+void i_t_4();
+void i_t_5();
+void i_t_6();
+void i_t_7();
+void i_t_8();
+void i_t_10();
+void i_t_11();
+void i_t_12();
+void i_t_13();
+void i_t_14();
+void i_t_16();
+void i_t_17();
+void i_t_18();
+void i_t_19();
+void i_t_SYSCALL();
+
 void
 trap_init(void)
 {
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
-
-	// Declare the functions
-	void t0();
-    void t1();
-	void t2();
-    void t3();
-    void t4();
-    void t5();
-    void t6();
-    void t7();
-    void t8();
-    void t10();
-    void t11();
-    void t12();
-    void t13();
-    void t14();
-    void t16();
-	void t17();
-	void t18();
-	void t19();
-	void t48();
-
-	// Initialize idt to point to entry points
-    SETGATE(idt[T_DIVIDE], 0, GD_KT, t0, 0);
-    SETGATE(idt[T_DEBUG], 0, GD_KT, t1, 0);
-    SETGATE(idt[T_NMI], 0, GD_KT, t2, 0);
-    SETGATE(idt[T_BRKPT], 0, GD_KT, t3, 3);
-    SETGATE(idt[T_OFLOW], 0, GD_KT, t4, 0);
-    SETGATE(idt[T_BOUND], 0, GD_KT, t5, 0);
-    SETGATE(idt[T_ILLOP], 0, GD_KT, t6, 0);
-    SETGATE(idt[T_DEVICE], 0, GD_KT, t7, 0);
-	SETGATE(idt[T_DBLFLT], 0, GD_KT, t8, 0);
-    SETGATE(idt[T_TSS], 0, GD_KT, t10, 0);
-    SETGATE(idt[T_SEGNP], 0, GD_KT, t11, 0);
-    SETGATE(idt[T_STACK], 0, GD_KT, t12, 0);
-    SETGATE(idt[T_GPFLT], 0, GD_KT, t13, 0);
-    SETGATE(idt[T_PGFLT], 0, GD_KT, t14, 0);
-    SETGATE(idt[T_FPERR], 0, GD_KT, t16, 0);
-	SETGATE(idt[T_ALIGN], 0, GD_KT, t17, 0);
-	SETGATE(idt[T_MCHK], 0, GD_KT, t18, 0);
-	SETGATE(idt[T_SIMDERR], 0, GD_KT, t19, 0);	
-	SETGATE(idt[T_SYSCALL], 0, GD_KT, t48, 3);
+	SETGATE(idt[0], 0, 0x8, &i_t_0, 0);
+	SETGATE(idt[1], 0, 0x8, &i_t_1, 0);
+	SETGATE(idt[2], 0, 0x8, &i_t_2, 0);
+	SETGATE(idt[3], 0, 0x8, &i_t_3, 3);
+	SETGATE(idt[4], 0, 0x8, &i_t_4, 0);
+	SETGATE(idt[5], 0, 0x8, &i_t_5, 0);
+	SETGATE(idt[6], 0, 0x8, &i_t_6, 0);
+	SETGATE(idt[7], 0, 0x8, &i_t_7, 0);
+	SETGATE(idt[8], 0, 0x8, &i_t_8, 0);
+	SETGATE(idt[10], 0, 0x8, &i_t_10, 0);
+	SETGATE(idt[11], 0, 0x8, &i_t_11, 0);
+	SETGATE(idt[12], 0, 0x8, &i_t_12, 0);
+	SETGATE(idt[13], 0, 0x8, &i_t_13, 0);
+	SETGATE(idt[14], 0, 0x8, &i_t_14, 0);
+	SETGATE(idt[16], 0, 0x8, &i_t_16, 0);
+	SETGATE(idt[17], 0, 0x8, &i_t_17, 0);
+	SETGATE(idt[18], 0, 0x8, &i_t_18, 0);
+	SETGATE(idt[19], 0, 0x8, &i_t_19, 0);
+	SETGATE(idt[48], 0, 0x8, &i_t_SYSCALL, 3);
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -144,10 +141,11 @@ trap_init_percpu(void)
 	//
 	// LAB 4: Your code here:
 
-	int cpuId = cpunum();
-
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
+	
+	int cpuId = cpunum();
+
 	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - cpuId * (KSTKSIZE + KSTKGAP);
 	thiscpu->cpu_ts.ts_ss0 = GD_KD;
 
@@ -214,25 +212,15 @@ static void
 trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
-
-	// Dispatch page fault exceptions to page_fault_handler
+	// LAB 3: Your code here.
 	if (tf->tf_trapno == T_PGFLT) {
 		page_fault_handler(tf);
 		return;
 	}
 
-	// Break point exceptions invoke kernal monitor
 	if (tf->tf_trapno == T_BRKPT) {
+		// int3: invoke kernel monitor
 		monitor(tf);
-		return;
-	}
-
-	// Syscall, invoke proper syscall
-	if (tf->tf_trapno == T_SYSCALL) {
-		// Set eax equal to return value of syscall
-		tf->tf_regs.reg_eax = 
-			syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
-			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
 		return;
 	}
 
@@ -255,6 +243,15 @@ trap_dispatch(struct Trapframe *tf)
 	// LAB 4: Your code here.
 
 
+	if (tf->tf_trapno == T_SYSCALL) {
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax,
+					      tf->tf_regs.reg_edx,
+					      tf->tf_regs.reg_ecx,
+					      tf->tf_regs.reg_ebx,
+					      tf->tf_regs.reg_edi,
+					      tf->tf_regs.reg_esi);
+		return;
+	}
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
@@ -290,6 +287,7 @@ trap(struct Trapframe *tf)
 		// Trapped from user mode.
 		// Acquire the big kernel lock before doing any
 		// serious kernel work.
+		// LAB 4: Your code here.
 		assert(curenv);
 		lock_kernel();
 
@@ -336,11 +334,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
-
 	if ((tf->tf_cs & 3) == 0) {
-		panic("Kernal fault");
+		panic("page_fault_handler: page fault from kernel mode\n");
 	}
-
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
 
@@ -373,32 +369,36 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
-	// Check if page fault upcall exists
-	if (curenv->env_pgfault_upcall != NULL) {
-		struct UTrapframe* utf;
-		if (tf->tf_esp >= UXSTACKTOP - PGSIZE && tf->tf_esp <= UXSTACKTOP - 1) {
-			// Already on user exceptionstack set up under current esp with extra word
-			utf = (struct UTrapframe*) (tf->tf_esp - 4 - sizeof(struct UTrapframe));
+	if (curenv->env_pgfault_upcall) {	
+		user_mem_assert(curenv, (void *) (UXSTACKTOP - PGSIZE), 
+				PGSIZE, PTE_W);
+		struct UTrapframe *u_trap;
+		uintptr_t new_utf_add;
+		if (tf->tf_esp < UXSTACKTOP - PGSIZE || tf->tf_esp >= UXSTACKTOP) {
+			// exception from regular user stack
+			new_utf_add = (UXSTACKTOP - sizeof(struct UTrapframe));
+			u_trap = (struct UTrapframe *) new_utf_add;
 		} else {
-			// Otherwise set up just ender UXSTACKTOP
-			utf = (struct UTrapframe*) (UXSTACKTOP - sizeof(struct UTrapframe));
+			// already on user exception stack
+			new_utf_add = tf->tf_esp - 4 - sizeof(struct UTrapframe);
+			if (new_utf_add < UXSTACKTOP - PGSIZE) {
+				// ran off exception stack
+				cprintf("ran off user exception stack in page_fault_handler\n");
+				env_destroy(curenv);
+			}
+			u_trap = (struct UTrapframe *) new_utf_add;
 		}
-		// Check that environment has write permission 
-		user_mem_assert(curenv, utf, sizeof(struct UTrapframe), PTE_W);
-		// Upadte values of utf
-		utf->utf_fault_va = fault_va;
-		utf->utf_err = tf->tf_err;
-		utf->utf_regs = tf->tf_regs;
-		utf->utf_eip = tf->tf_eip;
-		utf->utf_eflags = tf->tf_eflags;
-		utf->utf_esp = tf->tf_esp;
-		// Change trapframe eip and esp to upcall and utf
+		u_trap->utf_fault_va = fault_va;
+		u_trap->utf_err = tf->tf_err;
+		u_trap->utf_regs = tf->tf_regs;
+		u_trap->utf_eip = tf->tf_eip;
+		u_trap->utf_eflags = tf->tf_eflags;
+		u_trap->utf_esp = tf->tf_esp;
+
 		tf->tf_eip = (uintptr_t) curenv->env_pgfault_upcall;
-		tf->tf_esp = (uintptr_t) utf;
-		// Resume executing the environment
+		tf->tf_esp = new_utf_add;
 		env_run(curenv);
 	}
-
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);

@@ -67,7 +67,9 @@ _pgfault_upcall:
 	// LAB 4: Your code here.
 	// %esp points to UTF; 40 and 48 are the offsets for traptime EIP and ESP, respectively
 	subl $4, 48(%esp)
-	movl 40(%esp), 48(%esp)
+	movl 48(%esp), %eax
+	movl 40(%esp), %edx
+	movl %edx, (%eax)
 	// Restore the trap-time registers.  After you do this, you
 	// can no longer modify any general-purpose registers.
 	// LAB 4: Your code here.
@@ -83,7 +85,7 @@ _pgfault_upcall:
 	popfl
 	// Switch back to the adjusted trap-time stack.
 	// LAB 4: Your code here.
-	movl 48(%esp), %esp
+	popl %esp
 	// Return to re-execute the instruction that faulted.
 	// LAB 4: Your code here.
 	ret

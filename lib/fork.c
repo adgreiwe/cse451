@@ -25,7 +25,12 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 4: Your code here.
-
+	if ((err | FEC_WR) == 0) {
+		panic("pgfault was not from a write\n");
+	}
+	if ((uvpt[PGNUM(addr)] & PTE_COW) == 0) {
+		panic("address is not a COW address\n");
+	}
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
 	// page to the old page's address.
@@ -33,8 +38,22 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
+	r = sys_page_alloc(0, PFTEMP, PTE_W | PTE_U | PTE_P);
+	if (r < 0) {
+		panic("error allocating new writable page for COW page\n");
+	}
 
-	panic("pgfault not implemented");
+	addr = ROUNDDOWN(addr, PGSIZE);
+	memcpy(PFTEMP, addr, PGSIZE);
+	r = sys_page_map(0, PFTEMP, 0, addr, PTE_W | PTE_U | PTE_P);
+	if (r < 0) {
+		panic("error mapping writable page for COW page\n");
+	}
+
+	r = sys_page_unmap(0, PFTEMP);
+	if (r < 0) {
+		panic("error unmapping COW page after mapping replacement\n");
+	}
 }
 
 //
@@ -54,7 +73,26 @@ duppage(envid_t envid, unsigned pn)
 	int r;
 
 	// LAB 4: Your code here.
-	panic("duppage not implemented");
+	void *addr = (void *) (pn * PGSIZE);
+	int flags = uvpt[pn] & 0xfff;
+	if (flags & (PTE_W | PTE_COW)) {
+		// page at pn is writable or cowable: map to child->parent w/ COW
+		flags &= ~PTE_W;
+		flags |= PTE_COW;
+		r = sys_page_map(0, addr, envid, addr, flags);
+		if (r < 0) {
+			return r;
+		}
+		r = sys_page_map(0, addr, 0, addr, flags);
+		if (r < 0) {
+			return r;
+		}
+	} else {
+		r = sys_page_map(0, addr, envid, addr, flags);
+		if (r < 0) {
+			return r;
+		}
+	}
 	return 0;
 }
 
@@ -78,7 +116,42 @@ envid_t
 fork(void)
 {
 	// LAB 4: Your code here.
-	panic("fork not implemented");
+	set_pgfault_handler(&pgfault);
+	int envid = sys_exofork();
+	if (envid < 0) {
+		return envid;
+	}
+	if (envid == 0) {
+		// fix thisenv in child, then return
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	for (uintptr_t va = UTEXT; va < USTACKTOP; va += PGSIZE) {
+		if ((uvpd[PDX(va)] & PTE_P) && (uvpt[PGNUM(va)] & PTE_U)) {
+			// exists and user accesible: dup into child
+			duppage(envid, PGNUM(va));
+		}
+	}
+
+	int r = sys_page_alloc(envid, (void *) (UXSTACKTOP - PGSIZE), 
+			PTE_U | PTE_W | PTE_P);
+	if (r < 0) {
+		return r;
+	}
+
+	extern void _pgfault_upcall();
+	r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
+	if (r < 0) {
+		return r;
+	}
+
+	r = sys_env_set_status(envid, ENV_RUNNABLE);
+	if (r < 0) {
+		return r;
+	}
+
+	return envid;
 }
 
 // Challenge!

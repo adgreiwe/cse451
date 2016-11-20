@@ -25,32 +25,34 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 4: Your code here.
-	// Check that fault is write and that PTE is PTE_COW
-	if (!(err & FEC_WR) || !(uvpt[PGNUM(addr)] & PTE_COW)) {
-		panic("pgault: failed");
+	if ((err | FEC_WR) == 0) {
+		panic("pgfault was not from a write\n");
 	}
-
+	if ((uvpt[PGNUM(addr)] & PTE_COW) == 0) {
+		panic("address is not a COW address\n");
+	}
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
 	// page to the old page's address.
 	// Hint:
 	//   You should make three system calls.
 
-	// LAB 4: Your code here.	
-	// Allocate a new mapped at PFTEMP 
-	if (sys_page_alloc(0, PFTEMP, PTE_W | PTE_U | PTE_P) < 0) {
-		panic("pgault: failed");
+	// LAB 4: Your code here.
+	r = sys_page_alloc(0, PFTEMP, PTE_W | PTE_U | PTE_P);
+	if (r < 0) {
+		panic("error allocating new writable page for COW page\n");
 	}
-	// Copy data of old page aligned page to new page
+
 	addr = ROUNDDOWN(addr, PGSIZE);
 	memcpy(PFTEMP, addr, PGSIZE);
-	// Move new page to old page's address
-	if (sys_page_map(0, PFTEMP, 0, addr, PTE_W | PTE_U | PTE_P) < 0) {
-		panic("pgault: failed");
+	r = sys_page_map(0, PFTEMP, 0, addr, PTE_W | PTE_U | PTE_P);
+	if (r < 0) {
+		panic("error mapping writable page for COW page\n");
 	}
-	// Unmap the temporary page
-	if (sys_page_unmap(0, PFTEMP) < 0) {
-		panic("pgault: failed");
+
+	r = sys_page_unmap(0, PFTEMP);
+	if (r < 0) {
+		panic("error unmapping COW page after mapping replacement\n");
 	}
 }
 
@@ -68,26 +70,27 @@ pgfault(struct UTrapframe *utf)
 static int
 duppage(envid_t envid, unsigned pn)
 {
+	int r;
+
 	// LAB 4: Your code here.
-	// Set up virtual address
-	void* addr = (void*) (pn * PGSIZE);
-	// Set default permussions
-	int perm = PTE_U | PTE_P;
-	if (uvpt[pn] & (PTE_W | PTE_COW)) {
-		// Mapping must be marked as copy-on-write
-		perm |= PTE_COW;
-		// Map page into target environment
-		if (sys_page_map(0, addr, envid, addr, perm) < 0) {
-			panic("duppage: failed");
+	void *addr = (void *) (pn * PGSIZE);
+	int flags = uvpt[pn] & 0xfff;
+	if (flags & (PTE_W | PTE_COW)) {
+		// page at pn is writable or cowable: map to child->parent w/ COW
+		flags &= ~PTE_W;
+		flags |= PTE_COW;
+		r = sys_page_map(0, addr, envid, addr, flags);
+		if (r < 0) {
+			return r;
 		}
-		// Remap page as copy-on-writeable
-		if (sys_page_map(0, addr, 0, addr, perm) < 0) {
-			panic("duppage: failed");
+		r = sys_page_map(0, addr, 0, addr, flags);
+		if (r < 0) {
+			return r;
 		}
 	} else {
-		// If not copy-on-writeable simply map into target environment
-		if (sys_page_map(0, addr, envid, addr, perm) < 0) {
-			panic("duppage: failed");
+		r = sys_page_map(0, addr, envid, addr, flags);
+		if (r < 0) {
+			return r;
 		}
 	}
 	return 0;
@@ -113,38 +116,41 @@ envid_t
 fork(void)
 {
 	// LAB 4: Your code here.
-	// Set up page fault handler
-	set_pgfault_handler(pgfault);
-	// Create a child
-	envid_t envid = sys_exofork();
+	set_pgfault_handler(&pgfault);
+	int envid = sys_exofork();
 	if (envid < 0) {
-		panic("fork: failed");
-	}		
-	// In case this is child fix thisenv
+		return envid;
+	}
 	if (envid == 0) {
+		// fix thisenv in child, then return
 		thisenv = &envs[ENVX(sys_getenvid())];
 		return 0;
 	}
-	// For pages between UTEXT and USTACKTOP call duppage
-	for (uintptr_t va = UTEXT ; va < USTACKTOP; va += PGSIZE){
-		if (uvpd[PDX(va)] & PTE_P && uvpt[PGNUM(va)] & PTE_U) {
+
+	for (uintptr_t va = UTEXT; va < USTACKTOP; va += PGSIZE) {
+		if ((uvpd[PDX(va)] & PTE_P) && (uvpt[PGNUM(va)] & PTE_U)) {
+			// exists and user accesible: dup into child
 			duppage(envid, PGNUM(va));
 		}
 	}
-	// Allocate new page for child's user exception stack
-	if (sys_page_alloc(envid, (void*) (UXSTACKTOP-PGSIZE), PTE_U | PTE_P | PTE_W)) {
-		panic("fork: failed");
+
+	int r = sys_page_alloc(envid, (void *) (UXSTACKTOP - PGSIZE), 
+			PTE_U | PTE_W | PTE_P);
+	if (r < 0) {
+		return r;
 	}
-	// Copy page fault handler to the child
+
 	extern void _pgfault_upcall();
-	if (sys_env_set_pgfault_upcall(envid, _pgfault_upcall) < 0) {
-		panic("fork: failed");
+	r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
+	if (r < 0) {
+		return r;
 	}
-	// Set chuld status as runnable
-	if (sys_env_set_status(envid, ENV_RUNNABLE) < 0) {
-		panic("fork: failed");
+
+	r = sys_env_set_status(envid, ENV_RUNNABLE);
+	if (r < 0) {
+		return r;
 	}
-	// Return child's envid
+
 	return envid;
 }
 

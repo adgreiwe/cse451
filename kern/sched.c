@@ -31,20 +31,25 @@ sched_yield(void)
 	// LAB 4: Your code here.
 	struct Env *curr_env = curenv;
 	if (curr_env == NULL) {
-		curr_env = envs;
-	}
-	for (idle = curr_env; idle < envs + NENV; idle++) {
-		if (idle->env_status == ENV_RUNNABLE) {
-			env_run(idle);
+		for (idle = envs; idle < envs + NENV; idle++) {
+			if (idle->env_status == ENV_RUNNABLE) {
+				env_run(idle);
+			}
 		}
-	}
-	for (idle = envs; idle < curr_env; idle++) {
-		if (idle->env_status == ENV_RUNNABLE) {
-			env_run(idle);
+	} else {
+		for (idle = curr_env; idle < envs + NENV; idle++) {
+			if (idle->env_status == ENV_RUNNABLE) {
+				env_run(idle);
+			}
 		}
-	}
-	if (curr_env->env_status == ENV_RUNNING) {
-		env_run(curr_env);
+		for (idle = envs; idle < curr_env; idle++) {
+			if (idle->env_status == ENV_RUNNABLE) {
+				env_run(idle);
+			}
+		}
+		if (curenv->env_status == ENV_RUNNING) {
+			env_run(curenv);
+		}
 	}
 	// sched_halt never returns
 	sched_halt();

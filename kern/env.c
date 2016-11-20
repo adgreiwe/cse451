@@ -121,7 +121,7 @@ env_init(void)
 	// LAB 3: Your code here.
 
 	for (int i = NENV - 1; i >= 0; i--) {
-		envs[i].env_id = 0; //why is this 0 and not i... still passes tests with i
+		envs[i].env_id = 0;
 		envs[i].env_status = ENV_FREE;
 		envs[i].env_link = env_free_list;
 		env_free_list = envs + i;
@@ -553,12 +553,8 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-	if (curenv != NULL) {
-		if (curenv->env_status == ENV_RUNNING) {
-			curenv->env_status = ENV_RUNNABLE;
-		} else {
- 			panic("env_run: curenv's status is not ENV_RUNNING.\n");
-		}
+	if (curenv != NULL && curenv->env_status == ENV_RUNNING) {
+		curenv->env_status = ENV_RUNNABLE;
 	}
 	
 	curenv = e;

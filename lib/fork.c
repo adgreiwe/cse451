@@ -25,7 +25,7 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 4: Your code here.
-	if ((err | FEC_WR) == 0) {
+	if ((err & FEC_WR) == 0) {
 		panic("pgfault was not from a write\n");
 	}
 	if ((uvpt[PGNUM(addr)] & PTE_COW) == 0) {
@@ -74,10 +74,9 @@ duppage(envid_t envid, unsigned pn)
 
 	// LAB 4: Your code here.
 	void *addr = (void *) (pn * PGSIZE);
-	int flags = uvpt[pn] & 0xfff;
-	if (flags & (PTE_W | PTE_COW)) {
+	int flags = PTE_U | PTE_P;
+	if (uvpt[pn] & (PTE_W | PTE_COW)) {
 		// page at pn is writable or cowable: map to child->parent w/ COW
-		flags &= ~PTE_W;
 		flags |= PTE_COW;
 		r = sys_page_map(0, addr, envid, addr, flags);
 		if (r < 0) {

@@ -88,9 +88,20 @@ void i_t_SYSCALL();
 
 void i_t_32();
 void i_t_33();
+void i_t_34(); // ?
+void i_t_35(); // ?
 void i_t_36();
+void i_t_37(); // ?
+void i_t_38(); // ?
 void i_t_39();
+void i_t_40(); // ?
+void i_t_41(); // ?
+void i_t_42(); // ?
+void i_t_43(); // ?
+void i_t_44(); // ?
+void i_t_45(); // ?
 void i_t_46();
+void i_t_47(); // ?
 void i_t_51();
 
 void
@@ -120,9 +131,20 @@ trap_init(void)
 
 	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, 0x8, &i_t_32, 0);	
 	SETGATE(idt[IRQ_OFFSET + IRQ_OFFSET], 0, 0x8, &i_t_33, 0);
+	SETGATE(idt[IRQ_OFFSET + 2], 0, 0x8, &i_t_34, 0);
+	SETGATE(idt[IRQ_OFFSET + 3], 0, 0x8, &i_t_35, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL], 0, 0x8, &i_t_36, 0);
+	SETGATE(idt[IRQ_OFFSET + 5], 0, 0x8, &i_t_37, 0);
+	SETGATE(idt[IRQ_OFFSET + 6], 0, 0x8, &i_t_38, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS], 0, 0x8, &i_t_39, 0);
+	SETGATE(idt[IRQ_OFFSET + 8], 0, 0x8, &i_t_40, 0);
+	SETGATE(idt[IRQ_OFFSET + 9], 0, 0x8, &i_t_41, 0);
+	SETGATE(idt[IRQ_OFFSET + 10], 0, 0x8, &i_t_42, 0);
+	SETGATE(idt[IRQ_OFFSET + 11], 0, 0x8, &i_t_43, 0);
+	SETGATE(idt[IRQ_OFFSET + 12], 0, 0x8, &i_t_44, 0);
+	SETGATE(idt[IRQ_OFFSET + 13], 0, 0x8, &i_t_45, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_IDE], 0, 0x8, &i_t_46, 0);
+	SETGATE(idt[IRQ_OFFSET + 15], 0, 0x8, &i_t_47, 0);
 	SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, 0x8, &i_t_51, 0);
 
 	SETGATE(idt[T_SYSCALL], 0, 0x8, &i_t_SYSCALL, 3);

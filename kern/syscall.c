@@ -216,19 +216,15 @@ sys_exofork(void)
 	// will appear to return 0.
 
 	// LAB 4: Your code here.
-	struct Env* e;
-	// If there are no free environments return -E_NO_FREE_ENV
-	if (env_alloc(&e, curenv->env_id) < 0) {
-		return -E_NO_FREE_ENV;	
+	struct Env *new_env;
+	int result = env_alloc(&new_env, curenv->env_id);
+	if (result < 0) {
+		return result;
 	}
-	// Set status to ENV_NOT_RUNNABLE
-	e->env_status = ENV_NOT_RUNNABLE;
-	// Copy register set from current environment
-	e->env_tf = curenv->env_tf;
-	// Tweak EAX to show 0
-	e->env_tf.tf_regs.reg_eax = 0;
-	// Return the environment ID
-	return e->env_id;
+	new_env->env_status == ENV_NOT_RUNNABLE;
+	new_env->env_tf = curenv->env_tf;
+	new_env->env_tf.tf_regs.reg_eax = 0;
+	return new_env->env_id;
 }
 
 // Set envid's env_status to status, which must be ENV_RUNNABLE

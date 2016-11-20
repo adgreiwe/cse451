@@ -91,24 +91,30 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//   allocated!
 
 	// LAB 3: Your code here.
-	int user_readable = PTE_U | PTE_P;
-	if ((perm & user_readable) != user_readable ||
-	    ((~PTE_SYSCALL) & perm) != 0 ||
-	    // now check va
-	    va >= (void *) UTOP || 
-	    (size_t) va % PGSIZE != 0) {
-		return -E_INVAL;
-	}
-	// valid perm and va params
-	
-	struct Env *e;
+
+	struct Env* e;
+	// Check for bad environment
 	if (envid2env(envid, &e, 1) < 0) {
 		return -E_BAD_ENV;
 	}
-	struct PageInfo *new_page = page_alloc(ALLOC_ZERO);
-	if (page_insert(e->env_pgdir, new_page, va, perm) < 0) {
-		page_free(new_page);
+	// Check that permissions are correct
+	int reqPerm = PTE_U | PTE_P;
+	if ((perm & reqPerm) != reqPerm || perm & ~PTE_SYSCALL) {
+		return -E_INVAL;
+	}
+	// Check that virtual address is below UTOP and page aligned
+	if ((uintptr_t) va >= UTOP || (uintptr_t) va % PGSIZE != 0) {
+		return -E_INVAL;
+	}
+	// Allocate a new page that is zerod out
+	struct PageInfo* pg = page_alloc(ALLOC_ZERO);
+	if (!pg) {
 		return -E_NO_MEM;
+	}
+	// Insert the page, if this fails the page must be freed
+	if (page_insert(e->env_pgdir, pg, va, perm) < 0) {
+		page_free(pg);
+		return -E_NO_MEM;;
 	}
 	return 0;
 }

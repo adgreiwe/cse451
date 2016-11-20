@@ -23,9 +23,7 @@ sys_cputs(const char *s, size_t len)
 	// Destroy the environment if not.
 
 	// LAB 3: Your code here.
-	
-	user_mem_assert(curenv, s, len, PTE_U);
-
+	user_mem_assert(curenv, s, len, 0);
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);
 }
@@ -93,30 +91,25 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//   allocated!
 
 	// LAB 3: Your code here.
-
-	struct Env* e;
-	// Check for bad environment
+	int user_readable = PTE_U | PTE_P;
+	if ((uint32_t) (perm | 0xfff) > 0xfff ||
+	    (perm & user_readable) != user_readable ||
+	    ((~PTE_SYSCALL) & perm) != 0 ||
+	    // now check va
+	    va >= (void *) UTOP || 
+	    (size_t) va % PGSIZE != 0) {
+		return -E_INVAL;
+	}
+	// valid perm and va params
+	
+	struct Env *e = 0;
 	if (envid2env(envid, &e, 1) < 0) {
 		return -E_BAD_ENV;
 	}
-	// Check that permissions are correct
-	int reqPerm = PTE_U | PTE_P;
-	if ((perm & reqPerm) != reqPerm || perm & ~PTE_SYSCALL) {
-		return -E_INVAL;
-	}
-	// Check that virtual address is below UTOP and page aligned
-	if ((uintptr_t) va >= UTOP || (uintptr_t) va % PGSIZE != 0) {
-		return -E_INVAL;
-	}
-	// Allocate a new page that is zerod out
-	struct PageInfo* pg = page_alloc(ALLOC_ZERO);
-	if (!pg) {
+	struct PageInfo *new_page = page_alloc(ALLOC_ZERO);
+	if (page_insert(e->env_pgdir, new_page, va, perm) != 0) {
+		page_remove(e->env_pgdir, va);
 		return -E_NO_MEM;
-	}
-	// Insert the page, if this fails the page must be freed
-	if (page_insert(e->env_pgdir, pg, va, perm) < 0) {
-		page_free(pg);
-		return -E_NO_MEM;;
 	}
 	return 0;
 }
@@ -150,42 +143,32 @@ sys_page_map(envid_t srcenvid, void *srcva,
 
 	// LAB 3: Your code here.
 
-	struct Env* src;
-	// Check for bad environments
-	if (envid2env(srcenvid, &src, 1) < 0) {
+	struct Env *src_e;
+	struct Env *dst_e;
+	if (envid2env(srcenvid, &src_e, 1) < 0 ||
+	    envid2env(dstenvid, &dst_e, 1) < 0) {
 		return -E_BAD_ENV;
 	}
-	struct Env* dst;
-	if (envid2env(dstenvid, &dst, 1) < 0) {
-		return -E_BAD_ENV;
-	}
-	// Check that permissions are correct
-	int reqPerm = PTE_U | PTE_P;
-	if ((perm & reqPerm) != reqPerm || (perm & ~PTE_SYSCALL) != 0) {
+
+	pte_t *src_entry;
+	struct PageInfo *page = page_lookup(src_e->env_pgdir, srcva, &src_entry);
+	
+	int user_readable = PTE_P | PTE_U;
+	if (srcva >= (void *) UTOP || (size_t) srcva % PGSIZE != 0 ||
+	    dstva >= (void *) UTOP || (size_t) dstva % PGSIZE != 0 || 
+	    (uint32_t) (perm | 0xfff) > 0xfff ||
+	    (perm & user_readable) != user_readable ||
+	    ((~PTE_SYSCALL) & perm) != 0 || page == NULL || //USE page_lookup instead
+	    (((*src_entry & PTE_W) & perm) == 0 && (perm & PTE_W))) {
 		return -E_INVAL;
 	}
-	// Check addresses for range and alignment
-	if ((uintptr_t) srcva >= UTOP || (uintptr_t) srcva % PGSIZE != 0) {
-		return -E_INVAL;
+	// necessary to check *(pte_t - PTX(va)) write vs perm too?
+	
+	if (page_insert(dst_e->env_pgdir, page, dstva, perm) < 0) {
+		return -E_NO_MEM;
 	}
-	if ((uintptr_t) dstva >= UTOP || (uintptr_t) dstva % PGSIZE != 0) {
-		return -E_INVAL;
-	}
-	pte_t *pte;
-	// Get page from source vitual address
-  	struct PageInfo* pg = page_lookup(src->env_pgdir, srcva, &pte);
-  	if (!pg) {
-    	return -E_INVAL;
-	}
-	// Check that if perm is writeable then the source is not read-only
-	if (perm & PTE_W && !(*pte & PTE_W)) {
-    	return -E_INVAL;
-	}
-	// Insert the page in destination to map it
-  	if (page_insert(dst->env_pgdir, pg, dstva, perm) < 0) {
-    	return -E_NO_MEM;
-	}
-  	return 0;
+
+	return 0;
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
@@ -201,17 +184,15 @@ sys_page_unmap(envid_t envid, void *va)
 	// Hint: This function is a wrapper around page_remove().
 
 	// LAB 3: Your code here.
-	
-	struct Env* e;
-	// Check for bad environment
+	struct Env *e;
 	if (envid2env(envid, &e, 1) < 0) {
 		return -E_BAD_ENV;
 	}
-	// Check virtual address is below UTOP and page aligned
-	if ((uintptr_t) va >= UTOP || (uintptr_t) va % PGSIZE != 0) {
+
+	if (va >= (void *) UTOP || (size_t) va % PGSIZE != 0) {
 		return -E_INVAL;
 	}
-	// Remove page at virtual address to unmap it
+
 	page_remove(e->env_pgdir, va);
 	return 0;
 }
@@ -237,19 +218,16 @@ sys_exofork(void)
 	// will appear to return 0.
 
 	// LAB 4: Your code here.
-	struct Env* e;
-	// If there are no free environments return -E_NO_FREE_ENV
-	if (env_alloc(&e, curenv->env_id) < 0) {
-		return -E_NO_FREE_ENV;	
+	struct Env *new_env;
+	int result = env_alloc(&new_env, curenv->env_id);
+	if (result == 0) {
+		new_env->env_status == ENV_NOT_RUNNABLE;
+		new_env->env_tf = curenv->env_tf;
+		new_env->env_tf.tf_regs.reg_eax = 0;
+		return new_env->env_id;
+	} else {
+		return result;
 	}
-	// Set status to ENV_NOT_RUNNABLE
-	e->env_status = ENV_NOT_RUNNABLE;
-	// Copy register set from current environment
-	e->env_tf = curenv->env_tf;
-	// Tweak EAX to show 0
-	e->env_tf.tf_regs.reg_eax = 0;
-	// Return the environment ID
-	return e->env_id;
 }
 
 // Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -269,16 +247,14 @@ sys_env_set_status(envid_t envid, int status)
 	// envid's status.
 
 	// LAB 4: Your code here.
-  	struct Env* e;
-	// Check for bad environment
-	if (envid2env(envid, &e, 1) < 0) { 
-  		return -E_BAD_ENV;
-	}
-	// Check that status is ENV_RUNNABLE or ENV_NOT_RUNNABLE
 	if (status != ENV_RUNNABLE && status != ENV_NOT_RUNNABLE) {
 		return -E_INVAL;
 	}
-	// Update env_status to status
+	struct Env *e;
+	if (envid2env(envid, &e, 1) < 0) {
+		return -E_BAD_ENV;
+	}
+
 	e->env_status = status;
 	return 0;
 }
@@ -295,12 +271,11 @@ static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4: Your code here.
-	struct Env* e;
-	// Check for bad environment
+	struct Env *e;
 	if (envid2env(envid, &e, 1) < 0) {
 		return -E_BAD_ENV;
 	}
-	// Modify environment to store func
+
 	e->env_pgfault_upcall = func;
 	return 0;
 }
@@ -386,33 +361,51 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	// LAB 3: Your code here.
 
 	switch (syscallno) {
-		case SYS_cputs:
-			sys_cputs((char*)a1, a2);
-			return 0;
-		case SYS_cgetc:
-			return sys_cgetc();
-		case SYS_getenvid:
-			return sys_getenvid();
-		case SYS_env_destroy:
-			sys_env_destroy(a1);
-			return 0;
-		case SYS_page_alloc:
-    		return sys_page_alloc(a1, (void*) a2, a3);
-  		case SYS_page_map:
-    		return sys_page_map(a1, (void*) a2, a3, (void*) a4, a5);
-  		case SYS_page_unmap:
-    		return sys_page_unmap(a1, (void*) a2);
-		case SYS_yield:
-			sys_yield();
-			return 0;
-		case SYS_exofork:
-			return sys_exofork();
-		case SYS_env_set_status:
-			return sys_env_set_status(a1, a2);
-		case SYS_env_set_pgfault_upcall:
-			return sys_env_set_pgfault_upcall(a1, (void*) a2);
-		default:
-			return -E_INVAL;
+
+	case SYS_cputs :
+		// print string located at va a1 of length a2 to system console 
+		sys_cputs((char *) a1, a2);
+		return 0;
+
+	case SYS_getenvid :
+		// return envid_t that corresponds to curenv
+		return sys_getenvid();
+
+	case SYS_env_destroy :
+		// destroy environment that corresponds to envid_t in a1
+		return sys_env_destroy(a1);
+
+	case SYS_page_alloc :
+		// allocate page for environment that corresponds to envid_t in a1
+		// page is at va a2 with perm bits a3
+		return sys_page_alloc(a1, (char *) a2, (int) a3);
+
+	case SYS_page_map :
+		// map page at va a2 to va a4 with perm bits a5 where src/dest
+		// envs correspond with envid_t in a1/a3, respectively 
+		return sys_page_map(a1, (void *) a2, a3, (void *) a4, (int) a5);
+
+	case SYS_page_unmap :
+		// Unmap page at va a2 in environment that corresponds to envid_t a1
+		return sys_page_unmap(a1, (void *) a2);
+
+	case SYS_yield :
+		// shift running env on processor
+		sched_yield();
+		return 0;
+
+	case SYS_exofork :
+		return sys_exofork();
+
+	case SYS_env_set_status :
+		// set env corresponding with envid in a1 to have status held in a2
+		return sys_env_set_status(a1, (int) a2);
+
+	case SYS_env_set_pgfault_upcall : 
+		// set page fault upcall entry point (a2) for env of envid a1
+		return sys_env_set_pgfault_upcall(a1, (void *) a2);
+
+	default:
+		return -E_INVAL;
 	}
 }
-

@@ -218,13 +218,14 @@ sys_exofork(void)
 	// LAB 4: Your code here.
 	struct Env *new_env;
 	int result = env_alloc(&new_env, curenv->env_id);
-	if (result < 0) {
+	if (result == 0) {
+		new_env->env_status = ENV_NOT_RUNNABLE;
+		new_env->env_tf = curenv->env_tf;
+		new_env->env_tf.tf_regs.reg_eax = 0;
+		return new_env->env_id;
+	} else {
 		return result;
 	}
-	new_env->env_status == ENV_NOT_RUNNABLE;
-	new_env->env_tf = curenv->env_tf;
-	new_env->env_tf.tf_regs.reg_eax = 0;
-	return new_env->env_id;
 }
 
 // Set envid's env_status to status, which must be ENV_RUNNABLE

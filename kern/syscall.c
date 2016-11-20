@@ -148,31 +148,42 @@ sys_page_map(envid_t srcenvid, void *srcva,
 
 	// LAB 3: Your code here.
 
-	struct Env *src_e;
-	struct Env *dst_e;
-	if (envid2env(srcenvid, &src_e, 1) < 0 ||
-	    envid2env(dstenvid, &dst_e, 1) < 0) {
+	struct Env* src;
+	// Check for bad environments
+	if (envid2env(srcenvid, &src, 1) < 0) {
 		return -E_BAD_ENV;
 	}
-
-	pte_t *src_entry;
-	struct PageInfo *page = page_lookup(src_e->env_pgdir, srcva, &src_entry);
-	
-	int user_readable = PTE_P | PTE_U;
-	if (srcva >= (void *) UTOP || (size_t) srcva % PGSIZE != 0 ||
-	    dstva >= (void *) UTOP || (size_t) dstva % PGSIZE != 0 || 
-	    (perm & user_readable) != user_readable ||
-	    ((~PTE_SYSCALL) & perm) != 0 || page == NULL ||
-	    ((*src_entry & PTE_W) == 0 && (perm & PTE_W))) {
+	struct Env* dst;
+	if (envid2env(dstenvid, &dst, 1) < 0) {
+		return -E_BAD_ENV;
+	}
+	// Check that permissions are correct
+	int reqPerm = PTE_U | PTE_P;
+	if ((perm & reqPerm) != reqPerm || (perm & ~PTE_SYSCALL) != 0) {
 		return -E_INVAL;
 	}
-	// necessary to check *(pte_t - PTX(va)) write vs perm too?
-	
-	if (page_insert(dst_e->env_pgdir, page, dstva, perm) < 0) {
-		return -E_NO_MEM;
+	// Check addresses for range and alignment
+	if ((uintptr_t) srcva >= UTOP || (uintptr_t) srcva % PGSIZE != 0) {
+		return -E_INVAL;
 	}
-
-	return 0;
+	if ((uintptr_t) dstva >= UTOP || (uintptr_t) dstva % PGSIZE != 0) {
+		return -E_INVAL;
+	}
+	pte_t *pte;
+	// Get page from source vitual address
+  	struct PageInfo* pg = page_lookup(src->env_pgdir, srcva, &pte);
+  	if (!pg) {
+    	return -E_INVAL;
+	}
+	// Check that if perm is writeable then the source is not read-only
+	if (perm & PTE_W && !(*pte & PTE_W)) {
+    	return -E_INVAL;
+	}
+	// Insert the page in destination to map it
+  	if (page_insert(dst->env_pgdir, pg, dstva, perm) < 0) {
+    	return -E_NO_MEM;
+	}
+  	return 0;
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.

@@ -346,27 +346,31 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		return -E_IPC_NOT_RECV;
 	}
 
-	pte_t *src_entry; 
-	if (((uintptr_t) srcva < UTOP && 
+	pte_t *src_entry;
+	struct PageInfo *src_pg = page_lookup(curenv->env_pgdir, srcva, &src_entry);
+	if ((srcva < (void *) UTOP && 
 			((uintptr_t) srcva % PGSIZE != 0 ||
 			 !valid_perms(perm) ||
-			 !page_lookup(curenv->env_pgdir, srcva, &src_entry))) || 
+			 !src_pg)) || 
 			 ((perm & PTE_W) && !(*src_entry & PTE_W))) {
 		return -E_INVAL;
 	}
 
-	if ((uintptr_t) (dst_e->env_ipc_dstva) < UTOP) {
-		if (sys_page_map(curenv->env_id, srcva, 
-				 envid, dst_e->env_ipc_dstva, perm) < 0) {
+	if (dst_e->env_ipc_dstva < (void *) UTOP) {
+		if (page_insert(dst_e->env_pgdir, src_pg, dst_e->env_ipc_dstva, perm) < 0) {
 			return -E_NO_MEM;
 		}
+		dst_e->env_ipc_perm = perm;
 	}
-	// mapping was successful or no mapping was attempted
+	// mapping was successful or no mapping in ipc was attempted
 	dst_e->env_ipc_recving = 0;
 	dst_e->env_ipc_from = curenv->env_id;
 	dst_e->env_ipc_value = value;
-	dst_e->env_ipc_perm = perm;
 	dst_e->env_status = ENV_RUNNABLE;
+
+	// this part was not immediately obv to you... it's cause we did sched_yield so when
+	// we start running this env again the eax register will hold the pseudo return value
+	dst_e->env_tf.tf_regs.reg_eax = 0;
 
 	return 0;
 }
@@ -386,7 +390,7 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	if ((uintptr_t) dstva < UTOP && (uintptr_t) dstva % PGSIZE != 0) {
+	if (dstva < (void *) UTOP && (uintptr_t) dstva % PGSIZE != 0) {
 		return -E_INVAL;
 	}
 	// dstva is either page-aligned and below UTOP or dstva is not above UTOP

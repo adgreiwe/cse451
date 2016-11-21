@@ -13,6 +13,19 @@
 #include <kern/sched.h>
 #include <kern/sysinfo.h>
 
+// Returns 0 in the case that they're invalid or positive number
+// if they're valid as defined in comments of sys_page_alloc:
+// perm -- PTE_U | PTE_P must be set, PTE_AVAIL | PTE_W may or may not be set,
+//         but no other bits may be set.  See PTE_SYSCALL in inc/mmu.h.
+static int
+valid_perms(int perm)
+{
+	int user_readable = PTE_U | PTE_P;
+	return ((perm & user_readable) == user_readable &&
+		((~PTE_SYSCALL) & perm) == 0);
+}
+
+
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
@@ -91,9 +104,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//   allocated!
 
 	// LAB 3: Your code here.
-	int user_readable = PTE_U | PTE_P;
-	if ((perm & user_readable) != user_readable ||
-	    ((~PTE_SYSCALL) & perm) != 0 ||
+	if (!valid_perms(perm) || 
 	    // now check va
 	    va >= (void *) UTOP || 
 	    (size_t) va % PGSIZE != 0) {
@@ -152,11 +163,9 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	pte_t *src_entry;
 	struct PageInfo *page = page_lookup(src_e->env_pgdir, srcva, &src_entry);
 	
-	int user_readable = PTE_P | PTE_U;
 	if (srcva >= (void *) UTOP || (size_t) srcva % PGSIZE != 0 ||
 	    dstva >= (void *) UTOP || (size_t) dstva % PGSIZE != 0 || 
-	    (perm & user_readable) != user_readable ||
-	    ((~PTE_SYSCALL) & perm) != 0 || page == NULL ||
+	    !valid_perms(perm) || page == NULL ||
 	    ((*src_entry & PTE_W) == 0 && (perm & PTE_W))) {
 		return -E_INVAL;
 	}
@@ -283,7 +292,7 @@ static int
 sys_sysinfo(struct sysinfo *info)
 {
 	// LAB 4: Your code here.
-	panic("sys_sysinfo not implemented");
+	return sysinfo(info);
 }
 
 // Try to send 'value' to the target env 'envid'.
@@ -328,7 +337,38 @@ static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_try_send not implemented");
+	struct Env *dst_e;
+	if (envid2env(envid, &dst_e, 0) < 0) {
+		return -E_BAD_ENV;
+	}
+
+	if (!dst_e->env_ipc_recving) {
+		return -E_IPC_NOT_RECV;
+	}
+
+	pte_t *src_entry; 
+	if (((uintptr_t) srcva < UTOP && 
+			((uintptr_t) srcva % PGSIZE != 0 ||
+			 !valid_perms(perm) ||
+			 !page_lookup(curenv->env_pgdir, srcva, &src_entry))) || 
+			 ((perm & PTE_W) && !(*src_entry & PTE_W))) {
+		return -E_INVAL;
+	}
+
+	if ((uintptr_t) (dst_e->env_ipc_dstva) < UTOP) {
+		if (sys_page_map(curenv->env_id, srcva, 
+				 envid, dst_e->env_ipc_dstva, perm) < 0) {
+			return -E_NO_MEM;
+		}
+	}
+	// mapping was successful or no mapping was attempted
+	dst_e->env_ipc_recving = 0;
+	dst_e->env_ipc_from = curenv->env_id;
+	dst_e->env_ipc_value = value;
+	dst_e->env_ipc_perm = perm;
+	dst_e->env_status = ENV_RUNNABLE;
+
+	return 0;
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -346,7 +386,14 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_recv not implemented");
+	if ((uintptr_t) dstva < UTOP && (uintptr_t) dstva % PGSIZE != 0) {
+		return -E_INVAL;
+	}
+	// dstva is either page-aligned and below UTOP or dstva is not above UTOP
+	curenv->env_ipc_recving = 1;
+	curenv->env_ipc_dstva = dstva;
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	sched_yield();
 	return 0;
 }
 
@@ -402,6 +449,19 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_env_set_pgfault_upcall : 
 		// set page fault upcall entry point (a2) for env of envid a1
 		return sys_env_set_pgfault_upcall(a1, (void *) a2);
+
+	case SYS_sysinfo :
+		// get system info from struct sysinfo pointer stored in a1
+		return sys_sysinfo((struct sysinfo *) a1);
+
+	case SYS_ipc_try_send : 
+		// try sending to env corresponding to envid in a1 the value in
+		// a2 and the mapping stored in a3 with perm bits a4
+		return sys_ipc_try_send(a1, a2, (void *) a3, (int) a4);
+
+	case SYS_ipc_recv :
+		// block for ipc with mapping for dstva stored in a1
+		return sys_ipc_recv((void *) a1);
 
 	default:
 		return -E_INVAL;

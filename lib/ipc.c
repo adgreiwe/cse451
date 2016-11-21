@@ -2,6 +2,7 @@
 
 #include <inc/lib.h>
 
+#define NO_PG (void*) -1
 // Receive a value via IPC and return it.
 // If 'pg' is nonnull, then any page sent by the sender will be mapped at
 //	that address.
@@ -22,32 +23,32 @@
 int32_t
 ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 {
-	// LAB 4: Your code here.
-	int r;
-	if (pg) {
-		r = sys_ipc_recv(pg);
-	} else {
-		r = sys_ipc_recv((void *) -1);
+	// LAB 4: Your code here.	
+	// If page is null set it to map to NO_PG
+	if (!pg) {
+		pg = NO_PG;
 	}
-	if (from_env_store) {
-		if (r == 0) {
-			*from_env_store = thisenv->env_ipc_from;
-		} else {
+	int err;
+	if ((err = sys_ipc_recv(pg)) != 0) {
+		// Recieve failed, set from and perm to zero if they are
+		// nonnull and return the error
+		if (from_env_store) {
 			*from_env_store = 0;
 		}
-	}
-	if (perm_store) {
-		if (r == 0 && pg) {
-			*perm_store = thisenv->env_ipc_perm;
-		} else {
+		if (perm_store) {
 			*perm_store = 0;
 		}
+		return err;
 	}
-	if (r == 0) {
-		return thisenv->env_ipc_value;
-	} else {
-		return r;
+	// Store from and perm if they are nonnull
+	if (from_env_store) {
+		*from_env_store = thisenv->env_ipc_from;
 	}
+	if (perm_store) {
+		*perm_store = thisenv->env_ipc_perm;
+	}
+	// Return the value
+	return thisenv->env_ipc_value;
 }
 
 // Send 'val' (and 'pg' with 'perm', if 'pg' is nonnull) to 'toenv'.
@@ -62,17 +63,18 @@ void
 ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 {
 	// LAB 4: Your code here.
+	// If page is null set it to map to NO_PG
 	if (!pg) {
-		pg = (void *) -1;
-	}	
-	int r;
-	while ((r = sys_ipc_try_send(to_env, val, pg, perm))) {
-		// some error ocurred
-		if (r == -E_IPC_NOT_RECV) {
-			sys_yield();
-		} else {
-			panic("ipc_send failed\n");
+		pg = NO_PG;
+	}
+	int err;
+	while ((err = sys_ipc_try_send(to_env, val, pg, perm)))	{
+		// Panic on any error other than -E_IPC_NOT_RECV
+		if (err != -E_IPC_NOT_RECV) {
+			panic("ipc_send: failed");
 		}
+		// sys_yield() for CPU friendliness
+		sys_yield();
 	}
 }
 

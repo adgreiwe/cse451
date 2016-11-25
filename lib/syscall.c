@@ -100,6 +100,12 @@ sys_sysinfo(struct sysinfo *info)
 }
 
 int
+sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+{
+	return syscall(SYS_env_set_trapframe, 1, envid, (uint32_t) tf, 0, 0, 0);
+}
+
+int
 sys_env_set_pgfault_upcall(envid_t envid, void *upcall)
 {
 	return syscall(SYS_env_set_pgfault_upcall, 1, envid, (uint32_t) upcall, 0, 0, 0);
@@ -115,4 +121,16 @@ int
 sys_ipc_recv(void *dstva)
 {
 	return syscall(SYS_ipc_recv, 1, (uint32_t)dstva, 0, 0, 0, 0);
+}
+
+int
+sys_blk_write(uint32_t secno, const void *buf, size_t nsecs)
+{
+	return syscall(SYS_blk_write, 0, secno, (uint32_t)buf, nsecs, 0, 0);
+}
+
+int
+sys_blk_read(uint32_t secno, void *buf, size_t nsecs)
+{
+	return syscall(SYS_blk_read, 0, secno, (uint32_t)buf, nsecs, 0, 0);
 }

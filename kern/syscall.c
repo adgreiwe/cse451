@@ -69,10 +69,6 @@ sys_env_destroy(envid_t envid)
 
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
-	if (e == curenv)
-		cprintf("[%08x] exiting gracefully\n", curenv->env_id);
-	else
-		cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
 	env_destroy(e);
 	return 0;
 }
@@ -266,6 +262,22 @@ sys_env_set_status(envid_t envid, int status)
 	return 0;
 }
 
+// Set envid's trap frame to 'tf'.
+// tf is modified to make sure that user environments always run at code
+// protection level 3 (CPL 3) with interrupts enabled.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+static int
+sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+{
+	// LAB 5: Your code here.
+	// Remember to check whether the user has supplied us with a good
+	// address!
+	panic("sys_env_set_trapframe not implemented");
+}
+
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
 // Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
 // kernel will push a fault record onto the exception stack, then branch to
@@ -399,6 +411,22 @@ sys_ipc_recv(void *dstva)
 	curenv->env_status = ENV_NOT_RUNNABLE;
 	sched_yield();
 	return 0;
+}
+
+static int
+sys_blk_write(uint32_t secno, void *buf, size_t nsecs)
+{
+	// LAB 5: Your code here.
+	// Check that the user has permission for buf.
+	panic("sys_blk_write not implemented");
+}
+
+static int
+sys_blk_read(uint32_t secno, void *buf, size_t nsecs)
+{
+	// LAB 5: Your code here.
+	// Check that the user has permission for buf.
+	panic("sys_blk_read not implemented");
 }
 
 // Dispatches to the correct kernel function, passing the arguments.

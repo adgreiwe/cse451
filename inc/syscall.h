@@ -12,11 +12,14 @@ enum {
 	SYS_page_unmap,
 	SYS_exofork,
 	SYS_env_set_status,
+	SYS_env_set_trapframe,
 	SYS_env_set_pgfault_upcall,
 	SYS_yield,
 	SYS_sysinfo,
 	SYS_ipc_try_send,
 	SYS_ipc_recv,
+	SYS_blk_write,
+	SYS_blk_read,
 	NSYSCALLS
 };
 

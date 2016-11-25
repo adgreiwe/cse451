@@ -141,6 +141,7 @@ include boot/Makefrag
 include kern/Makefrag
 include lib/Makefrag
 include user/Makefrag
+include fs/Makefrag
 
 
 CPUS ?= 1
@@ -152,6 +153,10 @@ QEMUOPTS += -drive file=$(OBJDIR)/kern/kernel.img,format=raw,if=none,id=kernel \
 	    -device piix4-ide,id=piix4-ide -device ide-hd,drive=kernel,bus=piix4-ide.0
 IMAGES = $(OBJDIR)/kern/kernel.img
 QEMUOPTS += -smp $(CPUS)
+# Use an NVMe controller for the file system
+QEMUOPTS += -drive file=$(OBJDIR)/fs/fs.img,format=raw,if=none,id=fs \
+	    -device nvme,drive=fs,serial=jos
+IMAGES += $(OBJDIR)/fs/fs.img
 QEMUOPTS += $(QEMUEXTRA)
 
 .gdbinit: .gdbinit.tmpl
@@ -200,6 +205,8 @@ vbox: vmdk
 	VBoxManage storagectl jos --name "IDE" --add ide
 	VBoxManage storageattach jos --storagectl "IDE" --port 0 --device 0 --type hdd --medium $(OBJDIR)/kern/kernel.vmdk --mtype immutable
 	VBoxManage modifyvm jos --ioapic on --hpet on --cpus 8
+	VBoxManage storagectl jos --name "NVMe" --add pcie --controller NVMe
+	VBoxManage storageattach jos --storagectl "NVMe" --port 0 --type hdd --medium $(OBJDIR)/fs/fs.vmdk --mtype immutable
 #	VBoxManage modifyvm jos --uart1 0x3f8 4 --uartmode1 file /tmp/vbox.log
 
 # For deleting the build

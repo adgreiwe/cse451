@@ -1,5 +1,5 @@
 Alec Greiwe
-Total Time: 24 hours
+Total Time: 8 hours
 Team: Vlad Suslikov
 
 1. Compare kern/mpentry.S side by side with boot/boot.S. Bearing in mind that kern/mpentry.S is 

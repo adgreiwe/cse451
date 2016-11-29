@@ -12,6 +12,8 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 #include <kern/sysinfo.h>
+// you added
+#include <kern/nvme.h>
 
 // Returns 0 in the case that they're invalid or positive number
 // if they're valid as defined in comments of sys_page_alloc:
@@ -69,6 +71,14 @@ sys_env_destroy(envid_t envid)
 
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
+
+	// this was deleted in lab5 but it breaks the lab4 tests when commented out
+	if (e == curenv) {
+		cprintf("[%08x] exiting gracefully\n", curenv->env_id);
+	} else {
+		cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
+	}
+
 	env_destroy(e);
 	return 0;
 }
@@ -162,10 +172,9 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	if (srcva >= (void *) UTOP || (size_t) srcva % PGSIZE != 0 ||
 	    dstva >= (void *) UTOP || (size_t) dstva % PGSIZE != 0 || 
 	    !valid_perms(perm) || page == NULL ||
-	    ((*src_entry & PTE_W) == 0 && (perm & PTE_W))) {
+	    (!(*src_entry & PTE_W) && (perm & PTE_W))) {
 		return -E_INVAL;
 	}
-	// necessary to check *(pte_t - PTX(va)) write vs perm too?
 	
 	if (page_insert(dst_e->env_pgdir, page, dstva, perm) < 0) {
 		return -E_NO_MEM;
@@ -418,7 +427,10 @@ sys_blk_write(uint32_t secno, void *buf, size_t nsecs)
 {
 	// LAB 5: Your code here.
 	// Check that the user has permission for buf.
-	panic("sys_blk_write not implemented");
+	if (!user_mem_check(curenv, buf, BLKSIZE, PTE_U)) {
+		return nvme_write((uint64_t) secno, buf, (uint16_t) nsecs);
+	}
+	return -1;
 }
 
 static int
@@ -426,7 +438,10 @@ sys_blk_read(uint32_t secno, void *buf, size_t nsecs)
 {
 	// LAB 5: Your code here.
 	// Check that the user has permission for buf.
-	panic("sys_blk_read not implemented");
+	if (!user_mem_check(curenv, buf, BLKSIZE, PTE_U)) {
+		return nvme_read((uint64_t) secno, buf, (uint16_t) nsecs);
+	}
+	return -1;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -494,6 +509,14 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_ipc_recv :
 		// block for ipc with mapping for dstva stored in a1
 		return sys_ipc_recv((void *) a1);
+
+	case SYS_blk_write :
+		// write to buffer in a2
+		return sys_blk_write(a1, (void *) a2, a3);
+
+	case SYS_blk_read :
+		// read fron buffer in a2
+		return sys_blk_read(a1, (void *) a2, a3);
 
 	default:
 		return -E_INVAL;

@@ -7,6 +7,9 @@
 #include <kern/pmap.h>
 #include <kern/nvme.h>
 
+// NVMe device initialization method
+extern int nvme_attach(struct pci_func *pcif);
+
 // Flag to do "lspci" at bootup
 static int pci_show_devs = 1;
 static int pci_show_addrs = 1;
@@ -27,6 +30,7 @@ struct pci_driver {
 // pci_attach_class matches the class and subclass of a PCI device
 static struct pci_driver pci_attach_class[] = {
 	{ PCI_CLASS_BRIDGE, PCI_SUBCLASS_BRIDGE_PCI, &pci_bridge_attach },
+	{ 0x01, 0x08, &nvme_attach },
 	{ 0, 0, 0 },
 };
 

@@ -75,8 +75,14 @@ duppage(envid_t envid, unsigned pn)
 	// LAB 4: Your code here.
 	void *addr = (void *) (pn * PGSIZE);
 	int flags = PTE_U | PTE_P;
-	if (uvpt[pn] & (PTE_W | PTE_COW)) {
-		// page at pn is writable or cowable: map to child->parent w/ COW
+	if (uvpt[pn] & PTE_SHARE) {
+		// page at pn is sharable
+		r = sys_page_map(0, addr, envid, addr, uvpt[pn] & PTE_SYSCALL);
+		if (r < 0) {
+			return r;
+		}
+	} else if (uvpt[pn] & (PTE_W | PTE_COW)) {
+		// page at pn is writable or COW: map to child then parent w/ COW
 		flags |= PTE_COW;
 		r = sys_page_map(0, addr, envid, addr, flags);
 		if (r < 0) {
@@ -118,6 +124,7 @@ fork(void)
 	set_pgfault_handler(&pgfault);
 	int envid = sys_exofork();
 	if (envid < 0) {
+		// error
 		return envid;
 	}
 	if (envid == 0) {

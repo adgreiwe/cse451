@@ -284,7 +284,15 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	// LAB 5: Your code here.
 	// Remember to check whether the user has supplied us with a good
 	// address!
-	panic("sys_env_set_trapframe not implemented");
+	int r;
+	struct Env *e;
+
+	if ((r = envid2env(envid, &e, 1)) < 0) {
+		return r;
+	}
+
+	e->env_tf = *tf;
+	return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -427,10 +435,11 @@ sys_blk_write(uint32_t secno, void *buf, size_t nsecs)
 {
 	// LAB 5: Your code here.
 	// Check that the user has permission for buf.
-	if (!user_mem_check(curenv, buf, BLKSIZE, PTE_U)) {
+	int r;
+	if ((r = user_mem_check(curenv, buf, BLKSIZE, PTE_U)) == 0) {
 		return nvme_write((uint64_t) secno, buf, (uint16_t) nsecs);
 	}
-	return -1;
+	return r;
 }
 
 static int
@@ -438,10 +447,11 @@ sys_blk_read(uint32_t secno, void *buf, size_t nsecs)
 {
 	// LAB 5: Your code here.
 	// Check that the user has permission for buf.
-	if (!user_mem_check(curenv, buf, BLKSIZE, PTE_U)) {
+	int r;
+	if ((r = user_mem_check(curenv, buf, BLKSIZE, PTE_U)) == 0) {
 		return nvme_read((uint64_t) secno, buf, (uint16_t) nsecs);
 	}
-	return -1;
+	return r;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -517,6 +527,11 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	case SYS_blk_read :
 		// read fron buffer in a2
 		return sys_blk_read(a1, (void *) a2, a3);
+
+	case SYS_env_set_trapframe :
+		// set trapframe of env corresponding with envid a1 to one
+		// at a2 
+		return sys_env_set_trapframe(a1, (struct Trapframe *) a2);
 
 	default:
 		return -E_INVAL;

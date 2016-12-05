@@ -76,7 +76,7 @@ i386_init(uint32_t magic, uint32_t addr)
 	boot_aps();
 
 	// Start fs.
-	//ENV_CREATE(fs_fs, ENV_TYPE_FS);
+	ENV_CREATE(fs_fs, ENV_TYPE_FS);
 
 
 #if defined(TEST)

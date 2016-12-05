@@ -48,13 +48,16 @@ bc_pgfault(struct UTrapframe *utf)
 	// Hint: use sys_blk_read.
 	//
 	// LAB 5: you code here:
-	if (sys_blk_read(((uint32_t) addr - DISKMAP) / SECTSIZE, 
-			diskaddr(blockno), BLKSECTS) < 0) {
-		panic("user not authorized to access fault va\n");
+	if ((r = sys_page_alloc(0, ROUNDDOWN(addr, PGSIZE), PTE_SYSCALL)) < 0) {
+		panic("problem allocating page: %e\n", r);
+	}
+	if ((r = sys_blk_read(((uint32_t) diskaddr(blockno) - DISKMAP) / SECTSIZE, 
+			diskaddr(blockno), BLKSECTS)) < 0) {
+		panic("user not authorized to access fault va. Error %e\n", r);
 	}
 	// Clear the dirty bit for the disk block page since we just read the
 	// block from disk
-	if ((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
+	if ((r = sys_page_map(0, addr, 0, addr, PTE_SYSCALL)) < 0)
 		panic("in bc_pgfault, sys_page_map: %e", r);
 
 	// Check that the block we read was allocated. (exercise for
@@ -83,14 +86,13 @@ flush_block(void *addr)
 	void *blk_addr = diskaddr(blockno);
 	if (va_is_mapped(blk_addr) && va_is_dirty(blk_addr)) {
 		// block is active and has been written to: valid
-		cprintf("flush: in if. bout to write\n");
-		if (sys_blk_write(((uint32_t) addr - DISKMAP) / SECTSIZE,
+		if (sys_blk_write(((uint32_t) blk_addr - DISKMAP) / SECTSIZE,
 				blk_addr, BLKSECTS) < 0) {
 			panic("user not authorized to access addr\n");
 		}
-		cprintf("after write. bout to clear d-bit.\n");
 		int r;
-		if ((r = sys_page_map(0, blk_addr, 0, blk_addr, PTE_SYSCALL)) < 0) {
+		if ((r = sys_page_map(0, blk_addr, 0, blk_addr, 
+				uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0) {
 			panic("in flush_block, sys_page_map: %e\n", r);
 		}
 	}

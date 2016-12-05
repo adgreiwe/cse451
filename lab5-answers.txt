@@ -1,0 +1,7 @@
+Alec Greiwe
+Team: Vlad Suslikov
+Time Spent: 17 hours
+
+1. How many disks does this machine emulated by QEMU have? What are these disks?
+	3: QEMU NVM Express Controller, 82801IR/IO/IH (ICH9R/DO/DH) 6 
+	port SATA Controller [AHCI mode], and 82371AB/EB/MB/ PIIX4 IDE.

@@ -25,6 +25,12 @@ process involved making a batch.h file which contained a struct to store the
 information of a syscall and a method to add appropriate values to the struct 
 array in batch.c. This array was then passed into a single syscall which would 
 go through each batch struct and run the approriate syscall with the 
-appropriate arguments. In order for ping pong test to pass, I've commented out
+appropriate arguments. Interestingly, despite the ability to batch multiple
+system calls together, fork had a marginal or even nonexistent runtime 
+improvement when batching the necessary system calls in comparison to when it
+called each system call separately.  I believe this is an indication that 
+switching to and from kernel to be relatively cheap.  Perhaps there would be 
+an improvement if JOS was running more processes/environments. 
+Note: In order for ping pong test to pass, I've commented out
 the lines described in the beginning of lab5 (close_all() in lib/exit.c and 
-ENV_CREATE(fs_fs) line in kern/init.c).
+the ENV_CREATE(fs_fs) line in kern/init.c).

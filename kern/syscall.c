@@ -4,6 +4,7 @@
 #include <inc/error.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/batch.h>
 
 #include <kern/env.h>
 #include <kern/pmap.h>
@@ -454,6 +455,18 @@ sys_blk_read(uint32_t secno, void *buf, size_t nsecs)
 	return r;
 }
 
+static int
+sys_batch(struct batch *sys_calls, uint32_t num_calls)
+{
+	for (int i = 0; i < num_calls; i++) {
+		if (syscall(sys_calls[i].sys_no, sys_calls[i].p1, sys_calls[i].p2, 
+			    sys_calls[i].p3, sys_calls[i].p4, sys_calls[i].p5) < 0) {
+			panic("sys_batch: failed\n");
+		}
+	}
+	return 0;
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -532,6 +545,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		// set trapframe of env corresponding with envid a1 to one
 		// at a2 
 		return sys_env_set_trapframe(a1, (struct Trapframe *) a2);
+
+	case SYS_batch:
+		// batch a2 calls held in batch array a1
+		return sys_batch((struct batch *) a1, a2);
 
 	default:
 		return -E_INVAL;

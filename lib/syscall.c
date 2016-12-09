@@ -134,3 +134,9 @@ sys_blk_read(uint32_t secno, void *buf, size_t nsecs)
 {
 	return syscall(SYS_blk_read, 0, secno, (uint32_t)buf, nsecs, 0, 0);
 }
+
+int
+sys_batch(struct batch *sys_calls, uint32_t num_calls)
+{
+	return syscall(SYS_batch, 1, (uint32_t) sys_calls, num_calls, 0, 0, 0);
+}

@@ -20,6 +20,7 @@ enum {
 	SYS_ipc_recv,
 	SYS_blk_write,
 	SYS_blk_read,
+	SYS_batch,
 	NSYSCALLS
 };
 

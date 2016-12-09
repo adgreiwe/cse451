@@ -3,6 +3,7 @@ OBJDIRS += lib
 LIB_SRCFILES :=		lib/console.c \
 			lib/libmain.c \
 			lib/exit.c \
+			lib/batch.c \
 			lib/malloc.c \
 			lib/panic.c \
 			lib/printf.c \

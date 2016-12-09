@@ -2,6 +2,8 @@
 
 #include <inc/string.h>
 #include <inc/lib.h>
+#include <inc/batch.h>
+#include <inc/malloc.h>
 
 // PTE_COW marks copy-on-write page table entries.
 // It is one of the bits explicitly allocated to user processes (PTE_AVAIL).
@@ -68,35 +70,45 @@ pgfault(struct UTrapframe *utf)
 // It is also OK to panic on error.
 //
 static int
-duppage(envid_t envid, unsigned pn)
+duppage(envid_t envid, unsigned pn, struct batch **calls, int *num)
 {
-	int r;
+	//int r;
 
 	// LAB 4: Your code here.
-	void *addr = (void *) (pn * PGSIZE);
+	//void *addr = (void *) (pn * PGSIZE);
 	int flags = PTE_U | PTE_P;
+	struct batch *fork_calls = *calls;
+	int addr = pn * PGSIZE;
 	if (uvpt[pn] & PTE_SHARE) {
 		// page at pn is sharable
-		r = sys_page_map(0, addr, envid, addr, uvpt[pn] & PTE_SYSCALL);
-		if (r < 0) {
-			return r;
-		}
+		setup_batch(&fork_calls[(*num)++], SYS_page_map, 0, addr,
+				envid, addr, uvpt[pn] & PTE_SYSCALL);
+		//r = sys_page_map(0, addr, envid, addr, uvpt[pn] & PTE_SYSCALL);
+		//if (r < 0) {
+		//	return r;
+		//}
 	} else if (uvpt[pn] & (PTE_W | PTE_COW)) {
 		// page at pn is writable or COW: map to child then parent w/ COW
 		flags |= PTE_COW;
-		r = sys_page_map(0, addr, envid, addr, flags);
-		if (r < 0) {
-			return r;
-		}
-		r = sys_page_map(0, addr, 0, addr, flags);
-		if (r < 0) {
-			return r;
-		}
+		setup_batch(&fork_calls[(*num)++], SYS_page_map, 0, addr,
+				envid, addr, flags);
+		setup_batch(&fork_calls[(*num)++], SYS_page_map, 0, addr,
+				0, addr, flags);
+		//r = sys_page_map(0, addr, envid, addr, flags);
+		//if (r < 0) {
+		//	return r;
+		//}
+		//r = sys_page_map(0, addr, 0, addr, flags);
+		//if (r < 0) {
+		//	return r;
+		//}
 	} else {
-		r = sys_page_map(0, addr, envid, addr, flags);
-		if (r < 0) {
-			return r;
-		}
+		setup_batch(&fork_calls[(*num)++], SYS_page_map, 0, addr,
+				envid, addr, flags);
+		//r = sys_page_map(0, addr, envid, addr, flags);
+		//if (r < 0) {
+		//	return r;
+		//}
 	}
 	return 0;
 }
@@ -133,31 +145,55 @@ fork(void)
 		return 0;
 	}
 
+	struct batch *fork_calls = (struct batch *) 
+			malloc(MAXBATCH * sizeof(struct batch));
+	int num_calls = 0;
+
 	for (uintptr_t va = UTEXT; va < USTACKTOP; va += PGSIZE) {
 		if ((uvpd[PDX(va)] & PTE_P) && (uvpt[PGNUM(va)] & PTE_U)) {
 			// exists and user accesible: dup into child
-			duppage(envid, PGNUM(va));
+			duppage(envid, PGNUM(va), &fork_calls, &num_calls);
+			if (num_calls > MAXBATCH - 2) {
+				sys_batch(fork_calls, num_calls);
+				num_calls = 0;
+			}
 		}
 	}
-
-	int r = sys_page_alloc(envid, (void *) (UXSTACKTOP - PGSIZE), 
-			PTE_U | PTE_W | PTE_P);
-	if (r < 0) {
-		return r;
+	if (num_calls > MAXBATCH - 4) {
+		sys_batch(fork_calls, num_calls);
+		num_calls = 0;
 	}
 
 	extern void _pgfault_upcall();
-	r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
-	if (r < 0) {
-		return r;
-	}
-
-	r = sys_env_set_status(envid, ENV_RUNNABLE);
-	if (r < 0) {
-		return r;
-	}
+	setup_batch(&fork_calls[num_calls++], SYS_page_alloc, envid, 
+			UXSTACKTOP - PGSIZE, PTE_U | PTE_W | PTE_P, 0, 0);
+	setup_batch(&fork_calls[num_calls++], SYS_env_set_pgfault_upcall, envid, 
+			(uint32_t) _pgfault_upcall, 0, 0, 0);
+	setup_batch(&fork_calls[num_calls++], SYS_env_set_status, envid, 
+			ENV_RUNNABLE, 0, 0, 0);
+	sys_batch(fork_calls, num_calls);
+	free(fork_calls);
 
 	return envid;
+
+	//int r = sys_page_alloc(envid, (void *) (UXSTACKTOP - PGSIZE), 
+	//		PTE_U | PTE_W | PTE_P);
+	//if (r < 0) {
+	//	return r;
+	//}
+
+	//extern void _pgfault_upcall();
+	//r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall);
+	//if (r < 0) {
+	//	return r;
+	//}
+
+	//r = sys_env_set_status(envid, ENV_RUNNABLE);
+	//if (r < 0) {
+	//	return r;
+	//}
+
+	//return envid;
 }
 
 // Challenge!

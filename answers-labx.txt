@@ -1,0 +1,30 @@
+Alec Greiwe
+Team: Vlad Suslikov
+Time Spent: 18 hours
+
+Describe the problems/project and why you chose them, challenges you faced (if 
+any), your solution, and anything interesting that you would like to share:
+
+Lab 3 Challenge: refactoring trap handlers
+This challenge was chosen simply because it would result in code that looks 
+much cleaner than what was there previously due to being able to remove a lot 
+of the redundancy. The solution was fairly straight forward. Initially a global 
+variable was set up that would hold all of the trap functions so it could be 
+accessed in trap.c. To this all of the functions were added using the same 
+macros but now they hold data containing the name which meant that the global 
+information could be removed since it does not need to be accessed in trap.c. 
+Then trap.c was modified such that it looped through traps 0 through 19 and 
+used SETGATE with the appropriate index into the trap functions array.
+
+Lab 4 Challenge: system call batching
+This problem was chosen with the goal of being able to speed up certain 
+functions by avoiding the overhead that involves going into the kernel. This 
+problem had a couple of simple issues such as where to add the new .h file so 
+that it compiled and linked properly but was mostly straight forward. The 
+process involved making a batch.h file which contained a struct to store the 
+information of a syscall and a method to add appropriate values to the struct 
+array in batch.c. This array was then passed into a single syscall which would 
+go through each batch struct and run the approriate syscall with the 
+appropriate arguments. In order for ping pong test to pass, I've commented out
+the lines described in the beginning of lab5 (close_all() in lib/exit.c and 
+ENV_CREATE(fs_fs) line in kern/init.c).

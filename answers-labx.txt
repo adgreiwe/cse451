@@ -6,15 +6,17 @@ Describe the problems/project and why you chose them, challenges you faced (if
 any), your solution, and anything interesting that you would like to share:
 
 Lab 3 Challenge: refactoring trap handlers
-This challenge was chosen simply because it would result in code that looks 
-much cleaner than what was there previously due to being able to remove a lot 
-of the redundancy. The solution was fairly straight forward. Initially a global 
+We selected this challenge because we wanted cleaner looking code and less
+redundancy.  The solution was not that complicated.  Initially a global 
 variable was set up that would hold all of the trap functions so it could be 
 accessed in trap.c. To this all of the functions were added using the same 
 macros but now they hold data containing the name which meant that the global 
-information could be removed since it does not need to be accessed in trap.c. 
-Then trap.c was modified such that it looped through traps 0 through 19 and 
-used SETGATE with the appropriate index into the trap functions array.
+information could be removed since it was no longer necessary in trap.c. 
+Then trap.c was modified such that it used SETGATE with the correct indices,
+that corresponded with traps 0 through 19, into the trap functions array.  
+Note: the code was reverted to the point after completion of lab3 in order
+to pass the necessary tests and confirm that this alteration functioned
+correctly.
 
 Lab 4 Challenge: system call batching
 This problem was chosen with the goal of being able to speed up certain 
